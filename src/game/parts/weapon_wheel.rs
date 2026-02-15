@@ -16,6 +16,12 @@ pub struct MeleeSpec {
     pub hitbox_angle: f32,
     /// Control effect on hit (optional).
     pub hit_control: Option<ControlEffect>,
+    /// Visual spin rate multiplier (1.0 = default, higher = faster rotation).
+    pub spin_rate_multiplier: f32,
+    /// Blade visual length (world units).
+    pub blade_len: f32,
+    /// Blade visual thickness (world units).
+    pub blade_thick: f32,
 }
 
 impl Default for MeleeSpec {
@@ -27,6 +33,9 @@ impl Default for MeleeSpec {
             hitbox_radius: 1.0,
             hitbox_angle: std::f32::consts::FRAC_PI_3, // 60 degrees
             hit_control: None,
+            spin_rate_multiplier: 1.0,
+            blade_len: 0.8,
+            blade_thick: 0.25,
         }
     }
 }
@@ -52,13 +61,17 @@ pub struct RangedSpec {
     /// Projectile speed.
     pub projectile_speed: f32,
     pub aim_mode: AimMode,
+    /// Visual spin rate multiplier (1.0 = default, higher = faster rotation).
+    pub spin_rate_multiplier: f32,
+    pub barrel_len: f32,
+    pub barrel_thick: f32
 }
 
 impl Default for RangedSpec {
     fn default() -> Self {
         Self {
-            projectile_damage: 3.0,
-            fire_rate: 2.0,
+            projectile_damage: 6.0,
+            fire_rate: 4.0,
             burst_count: 1,
             spread_angle: 0.0,
             knockback_distance: 0.0,
@@ -67,6 +80,9 @@ impl Default for RangedSpec {
             lifetime: Seconds(2.0),
             projectile_speed: 10.0,
             aim_mode: AimMode::FollowSpin,
+            spin_rate_multiplier: 0.3,
+            barrel_len: 0.6,
+            barrel_thick: 0.15
         }
     }
 }
@@ -79,6 +95,19 @@ pub struct WeaponWheelSpec {
     pub kind: WeaponKind,
     pub melee: Option<MeleeSpec>,
     pub ranged: Option<RangedSpec>,
+}
+
+impl WeaponWheelSpec {
+    /// Get the effective spin rate multiplier from the active spec.
+    /// Hybrid: uses the max of both. No spec: defaults to 1.0.
+    pub fn spin_rate_multiplier(&self) -> f32 {
+        match (&self.melee, &self.ranged) {
+            (Some(m), Some(r)) => m.spin_rate_multiplier.max(r.spin_rate_multiplier),
+            (Some(m), None) => m.spin_rate_multiplier,
+            (None, Some(r)) => r.spin_rate_multiplier,
+            (None, None) => 1.0,
+        }
+    }
 }
 
 impl Default for WeaponWheelSpec {

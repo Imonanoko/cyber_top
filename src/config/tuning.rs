@@ -6,8 +6,13 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Resource, Serialize, Deserialize)]
 pub struct Tuning {
     pub dt: f32,
+    pub pixels_per_unit: f32,
+    pub aim_arrow_len_px: f32,
+    pub aim_arrow_thickness_px: f32,
+    pub aim_arrow_offset_px: f32,
     pub arena_radius: f32,
     pub wall_bounce_damping: f32,
+    pub top_collisions_restitution: f32,
     pub spin_drain_idle_per_sec: f32,
     pub spin_drain_on_wall_hit: f32,
     pub spin_drain_on_top_hit: f32,
@@ -19,14 +24,25 @@ pub struct Tuning {
     pub input_accel: f32,
     /// Optional: melee hit_speed_scale coefficient. 0 = disabled.
     pub melee_speed_scale_k: f32,
+    /// Default obstacle contact damage.
+    pub obstacle_damage: f32,
+    /// Aim rotation speed (radians per second).
+    pub aim_speed: f32,
+    /// Visual spin rate multiplier (velocity → visual rotation speed).
+    pub spin_visual_k: f32,
 }
 
 impl Default for Tuning {
     fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
+            pixels_per_unit: 25.0,
+            aim_arrow_len_px: 60.0,
+            aim_arrow_thickness_px: 4.0,
+            aim_arrow_offset_px: 40.0,
             arena_radius: 12.0,
-            wall_bounce_damping: 0.99,
+            wall_bounce_damping: 1.0,
+            top_collisions_restitution: 1.0,
             spin_drain_idle_per_sec: 0.2,
             spin_drain_on_wall_hit: 0.5,
             spin_drain_on_top_hit: 1.0,
@@ -37,6 +53,9 @@ impl Default for Tuning {
             max_speed: 8.0,
             input_accel: 25.0,
             melee_speed_scale_k: 0.0,
+            obstacle_damage: 2.0,
+            aim_speed: 3.0,
+            spin_visual_k: 2.0,
         }
     }
 }

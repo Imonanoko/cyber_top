@@ -20,7 +20,6 @@ pub fn detect_collisions(
     mut collision_events: MessageWriter<CollisionMessage>,
     mut events: MessageWriter<GameEvent>,
 ) {
-    let arena_r = tuning.arena_radius;
     let top_list: Vec<_> = tops.iter().collect();
 
     // Top–Top collisions
@@ -50,27 +49,11 @@ pub fn detect_collisions(
             }
         }
 
-        // Top–Wall collision
-        let (entity, tf, vel, stats) = &top_list[i];
-        let pos = tf.translation.truncate();
-        let dist = pos.length();
-        let boundary = arena_r - stats.0.radius.0;
-
-        if dist > boundary && dist > 0.0 {
-            let normal = pos / dist;
-            let dot = vel.0.dot(normal);
-            if dot > 0.0 {
-                events.write(GameEvent::DealDamage {
-                    src: None,
-                    dst: *entity,
-                    amount: tuning.wall_damage_k * dot,
-                    kind: DamageKind::Wall,
-                    tags: vec!["wall_hit".into()],
-                });
-            }
-        }
+        // Top–Wall collision is handled by circle::wall_reflection (PhysicsSet).
+        // No wall damage here to avoid double counting.
 
         // Top–Obstacle collisions
+        let (entity, tf, _vel, stats) = &top_list[i];
         for (obs_entity, obs_tf, obs_radius, obs_behavior) in &obstacles {
             let pos_top = tf.translation.truncate();
             let pos_obs = obs_tf.translation.truncate();
@@ -83,7 +66,7 @@ pub fn detect_collisions(
                         events.write(GameEvent::DealDamage {
                             src: Some(obs_entity),
                             dst: *entity,
-                            amount: 2.0, // default obstacle damage
+                            amount: tuning.obstacle_damage,
                             kind: DamageKind::Obstacle,
                             tags: vec!["obstacle_hit".into()],
                         });

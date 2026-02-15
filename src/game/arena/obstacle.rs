@@ -32,8 +32,12 @@ pub fn spawn_obstacles(
     }
 }
 
-/// Spawn projectile entities from SpawnProjectile events.
-pub fn spawn_projectiles(mut commands: Commands, mut events: MessageReader<GameEvent>) {
+/// Spawn projectile entities from SpawnProjectile events (with visible mesh).
+pub fn spawn_projectiles(
+    mut commands: Commands,
+    mut events: MessageReader<GameEvent>,
+    proj_assets: Res<ProjectileAssets>,
+) {
     for event in events.read() {
         if let GameEvent::SpawnProjectile {
             src,
@@ -47,7 +51,10 @@ pub fn spawn_projectiles(mut commands: Commands, mut events: MessageReader<GameE
         {
             commands.spawn((
                 ProjectileMarker,
-                Transform::from_translation(Vec3::new(position.x, position.y, 0.0)),
+                Mesh2d(proj_assets.mesh.clone()),
+                MeshMaterial2d(proj_assets.material.clone()),
+                Transform::from_translation(Vec3::new(position.x, position.y, 0.5))
+                    .with_scale(Vec3::splat(*radius)),
                 Velocity(*direction * *speed),
                 CollisionRadius(*radius),
                 ProjectileOwner(*src),

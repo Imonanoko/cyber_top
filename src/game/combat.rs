@@ -84,40 +84,56 @@ pub fn resolve_top_collisions(
     mut events: MessageReader<CollisionMessage>,
     mut tops: Query<(&mut Transform, &mut Velocity, &TopEffectiveStats), With<Top>>,
 ) {
+    let e = tuning.top_collisions_restitution.clamp(0.0, 1.0);
+
     for event in events.read() {
         if let Ok([mut top_a, mut top_b]) = tops.get_many_mut([event.a, event.b]) {
-            let stability_a = top_a.2 .0.stability;
-            let stability_b = top_b.2 .0.stability;
+            // Treat stability as "heaviness": higher stability => lower inv_mass
+            let inv_mass_a = 1.0 / (1.0 + top_a.2 .0.stability.max(0.0));
+            let inv_mass_b = 1.0 / (1.0 + top_b.2 .0.stability.max(0.0));
+            let inv_mass_sum = inv_mass_a + inv_mass_b;
 
-            let damping_a = 1.0 / (1.0 + stability_a);
-            let damping_b = 1.0 / (1.0 + stability_b);
+            if inv_mass_sum <= 0.0 {
+                continue;
+            }
 
-            let vel_change = event.impulse * event.normal;
-            top_a.1 .0 -= vel_change * damping_a;
-            top_b.1 .0 += vel_change * damping_b;
+            let n = event.normal;
 
-            // Separate overlapping tops
+            // Relative velocity along normal
+            let v_rel = top_a.1 .0 - top_b.1 .0;
+            let v_rel_n = v_rel.dot(n);
+
+            // Only resolve if they are moving toward each other along the normal
+            if v_rel_n <= 0.0 {
+                continue;
+            }
+
+            // Impulse magnitude (standard)
+            let j = (1.0 + e) * v_rel_n / inv_mass_sum;
+
+            top_a.1 .0 -= j * inv_mass_a * n;
+            top_b.1 .0 += j * inv_mass_b * n;
+
+            // Separate overlap (keep your current logic, but compute normal from positions for stability)
             let pos_a = top_a.0.translation.truncate();
             let pos_b = top_b.0.translation.truncate();
-            let dist = pos_a.distance(pos_b);
+            let delta = pos_b - pos_a;
+            let dist = delta.length();
             let min_dist = top_a.2 .0.radius.0 + top_b.2 .0.radius.0;
 
             if dist < min_dist && dist > 0.0 {
-                let overlap = (min_dist - dist) * 0.5;
-                let sep = event.normal * overlap;
-                top_a.0.translation.x -= sep.x;
-                top_a.0.translation.y -= sep.y;
-                top_b.0.translation.x += sep.x;
-                top_b.0.translation.y += sep.y;
+                let overlap = min_dist - dist;
+                let sep_n = delta / dist;
+                // split by mass (heavier moves less)
+                let move_a = overlap * (inv_mass_a / inv_mass_sum);
+                let move_b = overlap * (inv_mass_b / inv_mass_sum);
+
+                top_a.0.translation.x -= sep_n.x * move_a;
+                top_a.0.translation.y -= sep_n.y * move_a;
+                top_b.0.translation.x += sep_n.x * move_b;
+                top_b.0.translation.y += sep_n.y * move_b;
             }
 
-            // Clamp speeds
-            for vel in [&mut top_a.1, &mut top_b.1] {
-                let speed = vel.0.length();
-                if speed > tuning.max_speed {
-                    vel.0 = vel.0.normalize_or_zero() * tuning.max_speed;
-                }
-            }
         }
     }
 }

@@ -17,7 +17,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Cyber Top".into(),
-                resolution: (800u32, 600u32).into(),
+                resolution: (800u32, 800u32).into(),
                 ..default()
             }),
             ..default()

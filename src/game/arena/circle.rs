@@ -34,12 +34,6 @@ pub fn wall_reflection(
                 vel.0 -= 2.0 * dot * normal;
                 vel.0 *= damping;
 
-                // Clamp speed after reflection
-                let speed = vel.0.length();
-                if speed > tuning.max_speed {
-                    vel.0 = vel.0.normalize_or_zero() * tuning.max_speed;
-                }
-
                 // Generate wall damage event
                 if tuning.wall_damage_k > 0.0 {
                     let wall_dmg = tuning.wall_damage_k * dot;

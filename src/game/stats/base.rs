@@ -16,8 +16,8 @@ impl Default for BaseStats {
     fn default() -> Self {
         Self {
             spin_hp_max: SpinHp(100.0),
-            radius: Radius(0.5),
-            move_speed: MetersPerSec(5.0),
+            radius: Radius(1.2),
+            move_speed: MetersPerSec(100.0),
             control_reduction: 0.0,
         }
     }

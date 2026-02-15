@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-
+use bevy::camera::ScalingMode;
 use std::f32::consts::PI;
 
 use crate::config::tuning::Tuning;
@@ -9,7 +9,7 @@ use crate::game::{
     components::*,
     events::{CollisionMessage, GameEvent},
     hooks,
-    parts::Build,
+    parts::registry::PartRegistry,
     physics,
     stats::{base::BaseStats, types::*},
 };
@@ -152,82 +152,172 @@ fn setup_game(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    // Camera
-    commands.spawn(Camera2d);
+    let ppu = tuning.pixels_per_unit.max(1.0);
 
-    let scale = 20.0; // pixels per world unit
+    // Camera (Bevy 0.18): 用 Camera2d + Projection::Orthographic
+    commands.spawn((
+        Camera2d,
+        Projection::Orthographic(OrthographicProjection {
+            scaling_mode: ScalingMode::WindowSize,
+            // scale 越小 = 看起來越放大
+            // 目標：1 world unit 顯示成 20 px -> scale = 1/20
+            scale: 1.0 / ppu,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 
-    // Arena boundary (filled circle)
-    let arena_mesh = meshes.add(Circle::new(tuning.arena_radius * scale));
+    // Arena boundary (filled circle) — 用 world units，不乘 ppu
+    let arena_mesh = meshes.add(Circle::new(tuning.arena_radius));
     commands.spawn((
         Mesh2d(arena_mesh),
         MeshMaterial2d(materials.add(Color::srgba(0.15, 0.15, 0.2, 1.0))),
         Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
     ));
 
-    let default_build = Build::default();
+    // Projectile assets (unit circle scaled per-projectile)
+    let proj_mesh = meshes.add(Circle::new(1.0));
+    let proj_mat = materials.add(Color::srgb(1.0, 1.0, 0.2));
+    commands.insert_resource(ProjectileAssets {
+        mesh: proj_mesh,
+        material: proj_mat,
+    });
+
+    // Part registry (future: load from DB)
+    let registry = PartRegistry::with_defaults();
+
     let base = BaseStats::default();
-    let mods = default_build.combined_modifiers();
-    let effective = mods.compute_effective(&base, &tuning);
 
-    // Player top
-    let player_radius = effective.radius.0;
-    let player_mesh = meshes.add(Circle::new(player_radius * scale));
-    commands.spawn((
-        Top,
-        PlayerControlled,
-        Mesh2d(player_mesh),
-        MeshMaterial2d(materials.add(Color::srgb(0.2, 0.6, 1.0))),
-        Transform::from_translation(Vec3::new(-3.0 * scale, 0.0, 0.0)),
-        Velocity(Vec2::ZERO),
-        RotationAngle(AngleRad::new(0.0)),
-        SpinHpCurrent(effective.spin_hp_max),
-        TopEffectiveStats(effective.clone()),
-        TopBuild(default_build.clone()),
-        ControlState::default(),
-        StatusEffects::default(),
-        LaunchAim::default(),
-        MeleeHitTracker::default(),
-        combat::RangedFireTimer::default(),
-    ));
+    // Player build: ranged weapon (looked up from registry)
+    let player_build = registry
+        .resolve_build(
+            "player_build",
+            "default_top",
+            "basic_blaster",
+            "standard_shaft",
+            "standard_chassis",
+            "standard_screw",
+        )
+        .expect("player build parts not found in registry");
+    let player_mods = player_build.combined_modifiers();
+    let player_effective = player_mods.compute_effective(&base, &tuning);
 
-    // Aim arrow for the player top
-    let arrow_mesh = meshes.add(Rectangle::new(60.0, 4.0));
+    let player_radius = player_effective.radius.0;
+    let player_mesh = meshes.add(Circle::new(player_radius));
+
+    // Weapon visual mesh based on weapon kind
+    let player_weapon_mesh = spawn_weapon_visual_mesh(
+        &player_build.weapon,
+        player_radius,
+        &mut meshes,
+    );
+
+    commands
+        .spawn((
+            Top,
+            PlayerControlled,
+            Mesh2d(player_mesh),
+            MeshMaterial2d(materials.add(Color::srgb(0.2, 0.6, 1.0))),
+            Transform::from_translation(Vec3::new(-3.0, 0.0, 0.0)),
+            Velocity(Vec2::ZERO),
+            RotationAngle(AngleRad::new(0.0)),
+            SpinHpCurrent(player_effective.spin_hp_max),
+            TopEffectiveStats(player_effective.clone()),
+            TopBuild(player_build),
+            ControlState::default(),
+            StatusEffects::default(),
+            LaunchAim::default(),
+            MeleeHitTracker::default(),
+            combat::RangedFireTimer::default(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                WeaponVisual,
+                Mesh2d(player_weapon_mesh.0),
+                MeshMaterial2d(materials.add(Color::srgb(0.9, 0.9, 1.0))),
+                player_weapon_mesh.1,
+            ));
+        });
+
+    let arrow_len = tuning.aim_arrow_len_px / ppu;
+    let arrow_thick = tuning.aim_arrow_thickness_px / ppu;
+
+    let arrow_mesh = meshes.add(Rectangle::new(arrow_len, arrow_thick));
     commands.spawn((
         AimArrow,
         Mesh2d(arrow_mesh),
         MeshMaterial2d(materials.add(Color::srgb(0.2, 1.0, 0.2))),
-        Transform::from_translation(Vec3::new(-3.0 * scale + 30.0, 0.0, 1.0)),
+        Transform::from_translation(Vec3::new(-3.0 + arrow_len * 0.5, 0.0, 1.0)),
     ));
 
-    // AI top
-    let ai_build = Build {
-        id: "ai_build".into(),
-        top_id: "ai_top".into(),
-        ..Default::default()
-    };
+    // AI top: melee weapon (looked up from registry)
+    let ai_build = registry
+        .resolve_build(
+            "ai_build",
+            "ai_top",
+            "basic_blade",
+            "standard_shaft",
+            "standard_chassis",
+            "standard_screw",
+        )
+        .expect("AI build parts not found in registry");
     let ai_mods = ai_build.combined_modifiers();
     let ai_effective = ai_mods.compute_effective(&base, &tuning);
     let ai_radius = ai_effective.radius.0;
-    let ai_mesh = meshes.add(Circle::new(ai_radius * scale));
+    let ai_mesh = meshes.add(Circle::new(ai_radius));
 
-    commands.spawn((
-        Top,
-        AiControlled,
-        Mesh2d(ai_mesh),
-        MeshMaterial2d(materials.add(Color::srgb(1.0, 0.2, 0.2))),
-        Transform::from_translation(Vec3::new(3.0 * scale, 0.0, 0.0)),
-        Velocity(Vec2::ZERO),
-        RotationAngle(AngleRad::new(PI)),
-        SpinHpCurrent(ai_effective.spin_hp_max),
-        TopEffectiveStats(ai_effective),
-        TopBuild(ai_build),
-        ControlState::default(),
-        StatusEffects::default(),
-        LaunchAim::default(),
-        MeleeHitTracker::default(),
-        combat::RangedFireTimer::default(),
-    ));
+    let ai_weapon_mesh =
+        spawn_weapon_visual_mesh(&ai_build.weapon, ai_radius, &mut meshes);
+
+    commands
+        .spawn((
+            Top,
+            AiControlled,
+            Mesh2d(ai_mesh),
+            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.2, 0.2))),
+            Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
+            Velocity(Vec2::ZERO),
+            RotationAngle(AngleRad::new(PI)),
+            SpinHpCurrent(ai_effective.spin_hp_max),
+            TopEffectiveStats(ai_effective),
+            TopBuild(ai_build),
+            ControlState::default(),
+            StatusEffects::default(),
+            LaunchAim::default(),
+            MeleeHitTracker::default(),
+            combat::RangedFireTimer::default(),
+        ))
+        .with_children(|parent| {
+            parent.spawn((
+                WeaponVisual,
+                Mesh2d(ai_weapon_mesh.0),
+                MeshMaterial2d(materials.add(Color::srgb(1.0, 0.9, 0.8))),
+                ai_weapon_mesh.1,
+            ));
+        });
+
+    // Insert registry as resource (for future runtime access)
+    commands.insert_resource(registry);
+}
+
+/// Create weapon visual mesh + transform based on weapon spec.
+fn spawn_weapon_visual_mesh(
+    weapon: &crate::game::parts::weapon_wheel::WeaponWheelSpec,
+    top_radius: f32,
+    meshes: &mut ResMut<Assets<Mesh>>,
+) -> (Handle<Mesh>, Transform) {
+    let (len, thick) = match weapon.kind {
+        WeaponKind::Ranged => {
+            let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
+            (r.barrel_len, r.barrel_thick)
+        }
+        WeaponKind::Melee | WeaponKind::Hybrid => {
+            let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
+            (m.blade_len, m.blade_thick)
+        }
+    };
+    let mesh = meshes.add(Rectangle::new(len, thick));
+    let tf = Transform::from_translation(Vec3::new(top_radius + len * 0.5, 0.0, 0.5));
+    (mesh, tf)
 }
 
 // ── Aiming phase systems ────────────────────────────────────────────
@@ -236,9 +326,10 @@ fn setup_game(
 fn read_aim_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
+    tuning: Res<Tuning>,
     mut query: Query<&mut LaunchAim, With<PlayerControlled>>,
 ) {
-    let aim_speed = 3.0; // radians per second
+    let aim_speed = tuning.aim_speed;
     for mut aim in &mut query {
         if aim.confirmed {
             continue;
@@ -286,15 +377,18 @@ fn check_all_confirmed(
 
 /// Visual: position and rotate the aim arrow to match the player's aim direction.
 fn update_aim_arrow(
+    tuning: Res<Tuning>,
     player: Query<(&Transform, &LaunchAim), With<PlayerControlled>>,
     mut arrows: Query<&mut Transform, (With<AimArrow>, Without<PlayerControlled>)>,
 ) {
-    let Some((top_tf, aim)) = player.iter().next() else {
-        return;
-    };
+    let Some((top_tf, aim)) = player.iter().next() else { return; };
+
+    let ppu = tuning.pixels_per_unit.max(1.0);
+    let arrow_offset = tuning.aim_arrow_offset_px / ppu;
+
     let top_pos = top_tf.translation.truncate();
     let dir = Vec2::new(aim.angle.cos(), aim.angle.sin());
-    let arrow_center = top_pos + dir * 40.0;
+    let arrow_center = top_pos + dir * arrow_offset;
 
     for mut arrow_tf in &mut arrows {
         arrow_tf.translation = Vec3::new(arrow_center.x, arrow_center.y, 1.0);

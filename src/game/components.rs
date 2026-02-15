@@ -52,6 +52,17 @@ impl Default for LaunchAim {
 #[derive(Component)]
 pub struct AimArrow;
 
+/// Marker for weapon visual child entities.
+#[derive(Component)]
+pub struct WeaponVisual;
+
+/// Pre-built mesh/material handles for projectile rendering.
+#[derive(Resource)]
+pub struct ProjectileAssets {
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<ColorMaterial>,
+}
+
 // ── Top runtime state ───────────────────────────────────────────────
 
 #[derive(Component)]

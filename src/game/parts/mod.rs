@@ -1,4 +1,5 @@
 pub mod chassis;
+pub mod registry;
 pub mod shaft;
 pub mod trait_screw;
 pub mod weapon_wheel;

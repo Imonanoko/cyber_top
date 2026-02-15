@@ -6,17 +6,21 @@ use crate::config::tuning::Tuning;
 /// PhysicsSet: integrate velocity → position, update rotation angle.
 pub fn integrate_physics(
     tuning: Res<Tuning>,
-    mut query: Query<(&mut Transform, &Velocity, &mut RotationAngle), With<Top>>,
+    mut query: Query<(&mut Transform, &Velocity, &mut RotationAngle, &TopBuild), With<Top>>,
 ) {
     let dt = tuning.dt;
-    for (mut transform, vel, mut angle) in &mut query {
+    for (mut transform, vel, mut angle, build) in &mut query {
         transform.translation.x += vel.0.x * dt;
         transform.translation.y += vel.0.y * dt;
 
         if vel.0.length_squared() > 0.001 {
-            let spin_rate = vel.0.length() * 2.0;
+            let weapon_mult = build.0.weapon.spin_rate_multiplier();
+            let spin_rate = vel.0.length() * tuning.spin_visual_k * weapon_mult;
             angle.0 = angle.0.advance(spin_rate * dt);
         }
+
+        // Sync visual rotation so weapon child entities rotate with the top
+        transform.rotation = Quat::from_rotation_z(angle.0 .0);
     }
 }
 
