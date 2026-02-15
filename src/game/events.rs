@@ -2,15 +2,18 @@ use bevy::prelude::*;
 
 use super::stats::types::{ControlEffect, DamageKind};
 
+/// Top–Top collision event (separate message type to avoid Res/ResMut conflict).
+#[derive(Message, Debug, Clone)]
+pub struct CollisionMessage {
+    pub a: Entity,
+    pub b: Entity,
+    pub impulse: f32,
+    pub normal: Vec2,
+}
+
 /// All game events processed through the event pipeline.
 #[derive(Message, Debug, Clone)]
 pub enum GameEvent {
-    Collision {
-        a: Entity,
-        b: Entity,
-        impulse: f32,
-        normal: Vec2,
-    },
     DealDamage {
         src: Option<Entity>,
         dst: Entity,

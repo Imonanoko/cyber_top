@@ -1,44 +1,7 @@
 use bevy::prelude::*;
 
 use super::components::*;
-use super::intent::Intent;
 use crate::config::tuning::Tuning;
-
-/// InputIntentSet: consume Intent → apply acceleration.
-pub fn apply_intent(
-    tuning: Res<Tuning>,
-    mut query: Query<
-        (&Intent, &mut Velocity, &TopEffectiveStats, &ControlState),
-        With<Top>,
-    >,
-) {
-    let dt = tuning.dt;
-    for (intent, mut vel, stats, control) in &mut query {
-        if control.is_stunned() {
-            continue;
-        }
-
-        let accel = tuning.input_accel;
-        let max_speed = stats.0.move_speed.0;
-
-        let speed_mult = if control.is_slowed() {
-            1.0 - control.slow_ratio
-        } else {
-            1.0
-        };
-
-        if intent.move_dir != Vec2::ZERO {
-            let dir = intent.move_dir.normalize_or_zero();
-            vel.0 += dir * accel * dt;
-        }
-
-        let effective_max = max_speed * speed_mult;
-        let speed = vel.0.length();
-        if speed > effective_max {
-            vel.0 = vel.0.normalize_or_zero() * effective_max;
-        }
-    }
-}
 
 /// PhysicsSet: integrate velocity → position, update rotation angle.
 pub fn integrate_physics(

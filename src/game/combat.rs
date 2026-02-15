@@ -1,42 +1,33 @@
 use bevy::prelude::*;
 
 use super::components::*;
-use super::events::GameEvent;
-use super::intent::Intent;
+use super::events::{CollisionMessage, GameEvent};
 use super::stats::types::DamageKind;
 use crate::config::tuning::Tuning;
 
 /// EventGenerateSet: convert collisions into DealDamage events.
 pub fn generate_collision_damage(
     tuning: Res<Tuning>,
-    mut collision_events: MessageReader<GameEvent>,
+    mut collision_events: MessageReader<CollisionMessage>,
     mut out_events: MessageWriter<GameEvent>,
 ) {
     for event in collision_events.read() {
-        if let GameEvent::Collision {
-            a,
-            b,
-            impulse,
-            normal,
-        } = event
-        {
-            let damage = tuning.collision_damage_k * impulse;
+        let damage = tuning.collision_damage_k * event.impulse;
 
-            out_events.write(GameEvent::DealDamage {
-                src: Some(*a),
-                dst: *b,
-                amount: damage,
-                kind: DamageKind::Collision,
-                tags: vec!["collision".into()],
-            });
-            out_events.write(GameEvent::DealDamage {
-                src: Some(*b),
-                dst: *a,
-                amount: damage,
-                kind: DamageKind::Collision,
-                tags: vec!["collision".into()],
-            });
-        }
+        out_events.write(GameEvent::DealDamage {
+            src: Some(event.a),
+            dst: event.b,
+            amount: damage,
+            kind: DamageKind::Collision,
+            tags: vec!["collision".into()],
+        });
+        out_events.write(GameEvent::DealDamage {
+            src: Some(event.b),
+            dst: event.a,
+            amount: damage,
+            kind: DamageKind::Collision,
+            tags: vec!["collision".into()],
+        });
     }
 }
 
@@ -90,56 +81,48 @@ pub fn apply_control_events(
 /// Resolve Top–Top collision physics (velocity exchange).
 pub fn resolve_top_collisions(
     tuning: Res<Tuning>,
-    mut events: MessageReader<GameEvent>,
+    mut events: MessageReader<CollisionMessage>,
     mut tops: Query<(&mut Transform, &mut Velocity, &TopEffectiveStats), With<Top>>,
 ) {
     for event in events.read() {
-        if let GameEvent::Collision {
-            a,
-            b,
-            impulse,
-            normal,
-        } = event
-        {
-            if let Ok([mut top_a, mut top_b]) = tops.get_many_mut([*a, *b]) {
-                let stability_a = top_a.2 .0.stability;
-                let stability_b = top_b.2 .0.stability;
+        if let Ok([mut top_a, mut top_b]) = tops.get_many_mut([event.a, event.b]) {
+            let stability_a = top_a.2 .0.stability;
+            let stability_b = top_b.2 .0.stability;
 
-                let damping_a = 1.0 / (1.0 + stability_a);
-                let damping_b = 1.0 / (1.0 + stability_b);
+            let damping_a = 1.0 / (1.0 + stability_a);
+            let damping_b = 1.0 / (1.0 + stability_b);
 
-                let vel_change = *impulse * *normal;
-                top_a.1 .0 -= vel_change * damping_a;
-                top_b.1 .0 += vel_change * damping_b;
+            let vel_change = event.impulse * event.normal;
+            top_a.1 .0 -= vel_change * damping_a;
+            top_b.1 .0 += vel_change * damping_b;
 
-                // Separate overlapping tops
-                let pos_a = top_a.0.translation.truncate();
-                let pos_b = top_b.0.translation.truncate();
-                let dist = pos_a.distance(pos_b);
-                let min_dist = top_a.2 .0.radius.0 + top_b.2 .0.radius.0;
+            // Separate overlapping tops
+            let pos_a = top_a.0.translation.truncate();
+            let pos_b = top_b.0.translation.truncate();
+            let dist = pos_a.distance(pos_b);
+            let min_dist = top_a.2 .0.radius.0 + top_b.2 .0.radius.0;
 
-                if dist < min_dist && dist > 0.0 {
-                    let overlap = (min_dist - dist) * 0.5;
-                    let sep = *normal * overlap;
-                    top_a.0.translation.x -= sep.x;
-                    top_a.0.translation.y -= sep.y;
-                    top_b.0.translation.x += sep.x;
-                    top_b.0.translation.y += sep.y;
-                }
+            if dist < min_dist && dist > 0.0 {
+                let overlap = (min_dist - dist) * 0.5;
+                let sep = event.normal * overlap;
+                top_a.0.translation.x -= sep.x;
+                top_a.0.translation.y -= sep.y;
+                top_b.0.translation.x += sep.x;
+                top_b.0.translation.y += sep.y;
+            }
 
-                // Clamp speeds
-                for vel in [&mut top_a.1, &mut top_b.1] {
-                    let speed = vel.0.length();
-                    if speed > tuning.max_speed {
-                        vel.0 = vel.0.normalize_or_zero() * tuning.max_speed;
-                    }
+            // Clamp speeds
+            for vel in [&mut top_a.1, &mut top_b.1] {
+                let speed = vel.0.length();
+                if speed > tuning.max_speed {
+                    vel.0 = vel.0.normalize_or_zero() * tuning.max_speed;
                 }
             }
         }
     }
 }
 
-/// Fire ranged weapon projectiles.
+/// Fire ranged weapon projectiles (auto-fires when cooldown expires).
 pub fn fire_ranged_weapons(
     tuning: Res<Tuning>,
     mut query: Query<
@@ -147,7 +130,6 @@ pub fn fire_ranged_weapons(
             Entity,
             &Transform,
             &RotationAngle,
-            &Intent,
             &TopBuild,
             &TopEffectiveStats,
             &mut RangedFireTimer,
@@ -156,10 +138,10 @@ pub fn fire_ranged_weapons(
     >,
     mut events: MessageWriter<GameEvent>,
 ) {
-    for (entity, transform, angle, intent, build, stats, mut timer) in &mut query {
+    for (entity, transform, angle, build, stats, mut timer) in &mut query {
         timer.0 -= tuning.dt;
 
-        if !intent.fire || timer.0 > 0.0 {
+        if timer.0 > 0.0 {
             continue;
         }
 

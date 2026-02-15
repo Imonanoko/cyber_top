@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use super::components::*;
-use super::events::GameEvent;
+use super::events::{CollisionMessage, GameEvent};
 use super::stats::types::DamageKind;
 use crate::config::tuning::Tuning;
 
@@ -17,6 +17,7 @@ pub fn detect_collisions(
         (Entity, &Transform, &CollisionRadius, &ProjectileOwner, &ProjectileDamage),
         With<ProjectileMarker>,
     >,
+    mut collision_events: MessageWriter<CollisionMessage>,
     mut events: MessageWriter<GameEvent>,
 ) {
     let arena_r = tuning.arena_radius;
@@ -39,7 +40,7 @@ pub fn detect_collisions(
                 let impulse = rel_vel.dot(normal);
 
                 if impulse > 0.0 {
-                    events.write(GameEvent::Collision {
+                    collision_events.write(CollisionMessage {
                         a: *e_a,
                         b: *e_b,
                         impulse,

@@ -21,6 +21,37 @@ pub struct PlayerControlled;
 #[derive(Component)]
 pub struct AiControlled;
 
+// ── Game phase state ────────────────────────────────────────────────
+
+#[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
+pub enum GamePhase {
+    #[default]
+    Aiming,
+    Battle,
+    GameOver,
+}
+
+// ── Launch aiming ───────────────────────────────────────────────────
+
+#[derive(Component)]
+pub struct LaunchAim {
+    pub angle: f32,
+    pub confirmed: bool,
+}
+
+impl Default for LaunchAim {
+    fn default() -> Self {
+        Self {
+            angle: 0.0,
+            confirmed: false,
+        }
+    }
+}
+
+/// Marker for the aiming arrow entity so we can despawn it later.
+#[derive(Component)]
+pub struct AimArrow;
+
 // ── Top runtime state ───────────────────────────────────────────────
 
 #[derive(Component)]
