@@ -13,6 +13,7 @@ use crate::game::{
     physics,
     stats::types::*,
 };
+use crate::plugins::menu_plugin::{GameMode, GameSelection};
 
 // ── SystemSets (strict FixedUpdate ordering, battle-phase only) ─────
 
@@ -111,18 +112,21 @@ impl Plugin for GamePlugin {
         // CleanupSet
         app.add_systems(
             FixedUpdate,
-            (obstacle::cleanup_ttl, obstacle::handle_despawn_events)
+            (circle::despawn_projectiles_outside_arena, obstacle::cleanup_ttl, obstacle::handle_despawn_events)
                 .chain()
                 .in_set(FixedGameSet::CleanupSet),
         );
 
-        // ── Startup ─────────────────────────────────────────────────────
-        app.add_systems(Startup, setup_game);
+        // ── Startup: camera + registry (persist forever) ─────────────
+        app.add_systems(Startup, setup_camera);
+
+        // ── OnEnter(Aiming): spawn arena + tops from selection ───────
+        app.add_systems(OnEnter(GamePhase::Aiming), setup_arena);
 
         // ── Aiming phase (Update) ───────────────────────────────────────
         app.add_systems(
             Update,
-            (read_aim_input, ai_auto_aim, check_all_confirmed, update_aim_arrow)
+            (read_aim_input, read_aim_input_p2, ai_auto_aim, check_all_confirmed, update_aim_arrow)
                 .chain()
                 .run_if(in_state(GamePhase::Aiming)),
         );
@@ -139,42 +143,57 @@ impl Plugin for GamePlugin {
             check_game_over.run_if(in_state(GamePhase::Battle)),
         );
 
+        // ── Cleanup on return to MainMenu ────────────────────────────
+        app.add_systems(OnEnter(GamePhase::MainMenu), cleanup_game);
+
         // ── Always-on ───────────────────────────────────────────────────
         app.add_systems(Update, tuning_reload_input);
     }
 }
 
-// ── Startup ─────────────────────────────────────────────────────────
+// ── Startup: camera + registry ───────────────────────────────────────
 
-fn setup_game(
+fn setup_camera(
     mut commands: Commands,
     tuning: Res<Tuning>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let ppu = tuning.pixels_per_unit.max(1.0);
 
-    // Camera (Bevy 0.18): 用 Camera2d + Projection::Orthographic
     commands.spawn((
         Camera2d,
         Projection::Orthographic(OrthographicProjection {
             scaling_mode: ScalingMode::WindowSize,
-            // scale 越小 = 看起來越放大
-            // 目標：1 world unit 顯示成 20 px -> scale = 1/20
             scale: 1.0 / ppu,
             ..OrthographicProjection::default_2d()
         }),
     ));
 
-    // Arena boundary (filled circle) — 用 world units，不乘 ppu
+    // Part registry (persists forever)
+    commands.insert_resource(PartRegistry::with_defaults());
+}
+
+// ── OnEnter(Aiming): spawn arena + tops ──────────────────────────────
+
+fn setup_arena(
+    mut commands: Commands,
+    tuning: Res<Tuning>,
+    registry: Res<PartRegistry>,
+    selection: Res<GameSelection>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let ppu = tuning.pixels_per_unit.max(1.0);
+
+    // Arena boundary
     let arena_mesh = meshes.add(Circle::new(tuning.arena_radius));
     commands.spawn((
+        InGame,
         Mesh2d(arena_mesh),
         MeshMaterial2d(materials.add(Color::srgba(0.15, 0.15, 0.2, 1.0))),
         Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
     ));
 
-    // Projectile assets (unit circle scaled per-projectile)
+    // Projectile assets
     let proj_mesh = meshes.add(Circle::new(1.0));
     let proj_mat = materials.add(Color::srgb(1.0, 1.0, 0.2));
     commands.insert_resource(ProjectileAssets {
@@ -182,119 +201,124 @@ fn setup_game(
         material: proj_mat,
     });
 
-    // Part registry (future: load from DB)
-    let registry = PartRegistry::with_defaults();
-
-    // Player build: ranged weapon (looked up from registry)
-    let player_build = registry
+    // ── Player 1 ─────────────────────────────────────────────────────
+    let p1_build = registry
         .resolve_build(
-            "player_build",
-            "default_top",
-            "basic_blaster",
+            "p1_build",
+            &selection.p1_top_id,
+            &selection.p1_weapon_id,
             "standard_shaft",
             "standard_chassis",
             "standard_screw",
         )
-        .expect("player build parts not found in registry");
-    let player_mods = player_build.combined_modifiers();
-    let player_effective = player_mods.compute_effective(&player_build.top, &tuning);
-
-    let player_radius = player_effective.radius.0;
-    let player_mesh = meshes.add(Circle::new(player_radius));
-
-    // Weapon visual mesh based on weapon kind
-    let player_weapon_mesh = spawn_weapon_visual_mesh(
-        &player_build.weapon,
-        player_radius,
-        &mut meshes,
-    );
+        .expect("P1 build parts not found in registry");
+    let p1_mods = p1_build.combined_modifiers();
+    let p1_effective = p1_mods.compute_effective(&p1_build.top, &tuning);
+    let p1_radius = p1_effective.radius.0;
+    let p1_mesh = meshes.add(Circle::new(p1_radius));
+    let p1_weapon_mesh = spawn_weapon_visual_mesh(&p1_build.weapon, p1_radius, &mut meshes);
 
     commands
         .spawn((
+            InGame,
             Top,
             PlayerControlled,
-            Mesh2d(player_mesh),
+            Mesh2d(p1_mesh),
             MeshMaterial2d(materials.add(Color::srgb(0.2, 0.6, 1.0))),
             Transform::from_translation(Vec3::new(-3.0, 0.0, 0.0)),
             Velocity(Vec2::ZERO),
             RotationAngle(AngleRad::new(0.0)),
-            SpinHpCurrent(player_effective.spin_hp_max),
-            TopEffectiveStats(player_effective.clone()),
-            TopBuild(player_build),
+            SpinHpCurrent(p1_effective.spin_hp_max),
+            TopEffectiveStats(p1_effective.clone()),
+            TopBuild(p1_build),
             ControlState::default(),
             StatusEffects::default(),
-            LaunchAim::default(),
-            MeleeHitTracker::default(),
-            combat::RangedFireTimer::default(),
+            (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
         ))
         .with_children(|parent| {
             parent.spawn((
                 WeaponVisual,
-                Mesh2d(player_weapon_mesh.0),
+                Mesh2d(p1_weapon_mesh.0),
                 MeshMaterial2d(materials.add(Color::srgb(0.9, 0.9, 1.0))),
-                player_weapon_mesh.1,
+                p1_weapon_mesh.1,
             ));
         });
 
+    // P1 aim arrow
     let arrow_len = tuning.aim_arrow_len_px / ppu;
     let arrow_thick = tuning.aim_arrow_thickness_px / ppu;
-
     let arrow_mesh = meshes.add(Rectangle::new(arrow_len, arrow_thick));
     commands.spawn((
+        InGame,
         AimArrow,
         Mesh2d(arrow_mesh),
         MeshMaterial2d(materials.add(Color::srgb(0.2, 1.0, 0.2))),
         Transform::from_translation(Vec3::new(-3.0 + arrow_len * 0.5, 0.0, 1.0)),
     ));
 
-    // AI top: melee weapon (looked up from registry)
-    let ai_build = registry
+    // ── Player 2 / AI ────────────────────────────────────────────────
+    let p2_build = registry
         .resolve_build(
-            "ai_build",
-            "default_top",
-            "basic_blade",
+            "p2_build",
+            &selection.p2_top_id,
+            &selection.p2_weapon_id,
             "standard_shaft",
             "standard_chassis",
             "standard_screw",
         )
-        .expect("AI build parts not found in registry");
-    let ai_mods = ai_build.combined_modifiers();
-    let ai_effective = ai_mods.compute_effective(&ai_build.top, &tuning);
-    let ai_radius = ai_effective.radius.0;
-    let ai_mesh = meshes.add(Circle::new(ai_radius));
+        .expect("P2 build parts not found in registry");
+    let p2_mods = p2_build.combined_modifiers();
+    let p2_effective = p2_mods.compute_effective(&p2_build.top, &tuning);
+    let p2_radius = p2_effective.radius.0;
+    let p2_mesh = meshes.add(Circle::new(p2_radius));
+    let p2_weapon_mesh = spawn_weapon_visual_mesh(&p2_build.weapon, p2_radius, &mut meshes);
 
-    let ai_weapon_mesh =
-        spawn_weapon_visual_mesh(&ai_build.weapon, ai_radius, &mut meshes);
+    let mut p2_entity = commands.spawn((
+        InGame,
+        Top,
+        Mesh2d(p2_mesh),
+        MeshMaterial2d(materials.add(Color::srgb(1.0, 0.2, 0.2))),
+        Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
+        Velocity(Vec2::ZERO),
+        RotationAngle(AngleRad::new(PI)),
+        SpinHpCurrent(p2_effective.spin_hp_max),
+        TopEffectiveStats(p2_effective),
+        TopBuild(p2_build),
+        ControlState::default(),
+        StatusEffects::default(),
+        (LaunchAim { angle: PI, confirmed: false }, MeleeHitTracker::default(), combat::RangedFireTimer::default()),
+    ));
 
-    commands
-        .spawn((
-            Top,
-            AiControlled,
-            Mesh2d(ai_mesh),
-            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.2, 0.2))),
-            Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
-            Velocity(Vec2::ZERO),
-            RotationAngle(AngleRad::new(PI)),
-            SpinHpCurrent(ai_effective.spin_hp_max),
-            TopEffectiveStats(ai_effective),
-            TopBuild(ai_build),
-            ControlState::default(),
-            StatusEffects::default(),
-            LaunchAim::default(),
-            MeleeHitTracker::default(),
-            combat::RangedFireTimer::default(),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                WeaponVisual,
-                Mesh2d(ai_weapon_mesh.0),
-                MeshMaterial2d(materials.add(Color::srgb(1.0, 0.9, 0.8))),
-                ai_weapon_mesh.1,
-            ));
-        });
+    match selection.mode {
+        GameMode::PvAI => { p2_entity.insert(AiControlled); }
+        GameMode::PvP => { p2_entity.insert(Player2Controlled); }
+    }
 
-    // Insert registry as resource (for future runtime access)
-    commands.insert_resource(registry);
+    p2_entity.with_children(|parent| {
+        parent.spawn((
+            WeaponVisual,
+            Mesh2d(p2_weapon_mesh.0),
+            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.9, 0.8))),
+            p2_weapon_mesh.1,
+        ));
+    });
+
+    // P2 aim arrow (PvP only — AI auto-aims so no arrow needed)
+    if selection.mode == GameMode::PvP {
+        let arrow_mesh2 = meshes.add(Rectangle::new(arrow_len, arrow_thick));
+        // P2 faces left (angle=PI), so offset arrow to the left
+        let p2_dir = Vec2::new(PI.cos(), PI.sin());
+        let p2_arrow_center = Vec2::new(3.0, 0.0) + p2_dir * (arrow_len * 0.5);
+        commands.spawn((
+            InGame,
+            AimArrow,
+            Player2Controlled,
+            Mesh2d(arrow_mesh2),
+            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.4, 0.2))),
+            Transform::from_translation(Vec3::new(p2_arrow_center.x, p2_arrow_center.y, 1.0))
+                .with_rotation(Quat::from_rotation_z(PI)),
+        ));
+    }
 }
 
 /// Create weapon visual mesh + transform based on weapon spec.
@@ -318,9 +342,21 @@ fn spawn_weapon_visual_mesh(
     (mesh, tf)
 }
 
+// ── Cleanup on return to MainMenu ────────────────────────────────────
+
+fn cleanup_game(
+    mut commands: Commands,
+    query: Query<Entity, With<InGame>>,
+) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
+    commands.remove_resource::<ProjectileAssets>();
+}
+
 // ── Aiming phase systems ────────────────────────────────────────────
 
-/// Player rotates launch direction with Left/Right (or A/D), confirms with Space/Enter.
+/// Player 1 rotates with Arrow keys, confirms with Space.
 fn read_aim_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
@@ -332,13 +368,37 @@ fn read_aim_input(
         if aim.confirmed {
             continue;
         }
-        if keyboard.pressed(KeyCode::ArrowLeft) || keyboard.pressed(KeyCode::KeyA) {
+        if keyboard.pressed(KeyCode::ArrowLeft) {
             aim.angle += aim_speed * time.delta_secs();
         }
-        if keyboard.pressed(KeyCode::ArrowRight) || keyboard.pressed(KeyCode::KeyD) {
+        if keyboard.pressed(KeyCode::ArrowRight) {
             aim.angle -= aim_speed * time.delta_secs();
         }
-        if keyboard.just_pressed(KeyCode::Space) || keyboard.just_pressed(KeyCode::Enter) {
+        if keyboard.just_pressed(KeyCode::Space) {
+            aim.confirmed = true;
+        }
+    }
+}
+
+/// Player 2 (PvP) rotates with A/D, confirms with Enter.
+fn read_aim_input_p2(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+    tuning: Res<Tuning>,
+    mut query: Query<&mut LaunchAim, With<Player2Controlled>>,
+) {
+    let aim_speed = tuning.aim_speed;
+    for mut aim in &mut query {
+        if aim.confirmed {
+            continue;
+        }
+        if keyboard.pressed(KeyCode::KeyA) {
+            aim.angle += aim_speed * time.delta_secs();
+        }
+        if keyboard.pressed(KeyCode::KeyD) {
+            aim.angle -= aim_speed * time.delta_secs();
+        }
+        if keyboard.just_pressed(KeyCode::Enter) {
             aim.confirmed = true;
         }
     }
@@ -373,30 +433,49 @@ fn check_all_confirmed(
     }
 }
 
-/// Visual: position and rotate the aim arrow to match the player's aim direction.
+/// Visual: position and rotate aim arrows to match aim direction.
 fn update_aim_arrow(
     tuning: Res<Tuning>,
-    player: Query<(&Transform, &LaunchAim), With<PlayerControlled>>,
-    mut arrows: Query<&mut Transform, (With<AimArrow>, Without<PlayerControlled>)>,
+    player: Query<(&Transform, &LaunchAim), (With<PlayerControlled>, Without<AimArrow>)>,
+    p2_top: Query<(&Transform, &LaunchAim), (With<Player2Controlled>, With<Top>, Without<AimArrow>)>,
+    mut arrows_p1: Query<
+        &mut Transform,
+        (With<AimArrow>, Without<PlayerControlled>, Without<Player2Controlled>),
+    >,
+    mut arrows_p2: Query<
+        &mut Transform,
+        (With<AimArrow>, With<Player2Controlled>, Without<PlayerControlled>),
+    >,
 ) {
-    let Some((top_tf, aim)) = player.iter().next() else { return; };
-
     let ppu = tuning.pixels_per_unit.max(1.0);
     let arrow_offset = tuning.aim_arrow_offset_px / ppu;
 
-    let top_pos = top_tf.translation.truncate();
-    let dir = Vec2::new(aim.angle.cos(), aim.angle.sin());
-    let arrow_center = top_pos + dir * arrow_offset;
+    // P1 arrow
+    if let Some((top_tf, aim)) = player.iter().next() {
+        let top_pos = top_tf.translation.truncate();
+        let dir = Vec2::new(aim.angle.cos(), aim.angle.sin());
+        let arrow_center = top_pos + dir * arrow_offset;
+        for mut arrow_tf in &mut arrows_p1 {
+            arrow_tf.translation = Vec3::new(arrow_center.x, arrow_center.y, 1.0);
+            arrow_tf.rotation = Quat::from_rotation_z(aim.angle);
+        }
+    }
 
-    for mut arrow_tf in &mut arrows {
-        arrow_tf.translation = Vec3::new(arrow_center.x, arrow_center.y, 1.0);
-        arrow_tf.rotation = Quat::from_rotation_z(aim.angle);
+    // P2 arrow (PvP only)
+    if let Some((top_tf, aim)) = p2_top.iter().next() {
+        let top_pos = top_tf.translation.truncate();
+        let dir = Vec2::new(aim.angle.cos(), aim.angle.sin());
+        let arrow_center = top_pos + dir * arrow_offset;
+        for mut arrow_tf in &mut arrows_p2 {
+            arrow_tf.translation = Vec3::new(arrow_center.x, arrow_center.y, 1.0);
+            arrow_tf.rotation = Quat::from_rotation_z(aim.angle);
+        }
     }
 }
 
 // ── OnEnter(Battle) systems ─────────────────────────────────────────
 
-/// Set each top's velocity from its aim direction × move_speed.
+/// Set each top's velocity from its aim direction * move_speed.
 fn launch_tops(
     mut query: Query<(&LaunchAim, &mut Velocity, &TopEffectiveStats), With<Top>>,
 ) {

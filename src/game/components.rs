@@ -26,10 +26,22 @@ pub struct AiControlled;
 #[derive(States, Debug, Clone, PartialEq, Eq, Hash, Default)]
 pub enum GamePhase {
     #[default]
+    MainMenu,
+    Selection,
+    PickMap,
+    PickTop,
     Aiming,
     Battle,
     GameOver,
 }
+
+/// Marker: tag all game-session entities for cleanup when returning to main menu.
+#[derive(Component)]
+pub struct InGame;
+
+/// Marker for Player 2 (local PvP).
+#[derive(Component)]
+pub struct Player2Controlled;
 
 // ── Launch aiming ───────────────────────────────────────────────────
 

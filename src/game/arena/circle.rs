@@ -4,6 +4,21 @@ use crate::config::tuning::Tuning;
 use crate::game::components::*;
 use crate::game::events::GameEvent;
 
+/// Despawn projectiles that leave the arena boundary.
+pub fn despawn_projectiles_outside_arena(
+    mut commands: Commands,
+    tuning: Res<Tuning>,
+    query: Query<(Entity, &Transform, &CollisionRadius), With<ProjectileMarker>>,
+) {
+    let arena_r = tuning.arena_radius;
+    for (entity, transform, radius) in &query {
+        let pos = transform.translation.truncate();
+        if pos.length() > arena_r + radius.0 {
+            commands.entity(entity).despawn();
+        }
+    }
+}
+
 /// Wall reflection system — handles Top bouncing off the circular arena boundary.
 /// This is the authoritative wall reflection that also generates wall damage events.
 pub fn wall_reflection(
