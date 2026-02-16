@@ -7,13 +7,15 @@ use super::shaft::ShaftSpec;
 use super::trait_screw::TraitScrewSpec;
 use super::weapon_wheel::{MeleeSpec, RangedSpec, WeaponWheelSpec};
 use super::Build;
-use crate::game::stats::types::WeaponKind;
+use crate::game::stats::base::BaseStats;
+use crate::game::stats::types::{MetersPerSec, Radius, SpinHp, WeaponKind};
 
-/// Registry of all available parts, indexed by ID.
+/// Registry of all available parts and tops, indexed by ID.
 /// Currently populated with hardcoded presets.
-/// Future: load from `parts` DB table (`id, slot, kind, spec_json`).
+/// Future: load from DB tables (`tops`, `parts`).
 #[derive(Resource, Default)]
 pub struct PartRegistry {
+    pub tops: HashMap<String, BaseStats>,
     pub weapons: HashMap<String, WeaponWheelSpec>,
     pub shafts: HashMap<String, ShaftSpec>,
     pub chassis: HashMap<String, ChassisSpec>,
@@ -24,6 +26,21 @@ impl PartRegistry {
     /// Populate with hardcoded preset parts.
     pub fn with_defaults() -> Self {
         let mut reg = Self::default();
+
+        // ── Tops ─────────────────────────────────────────────────
+        reg.tops.insert("default_top".into(), BaseStats::default());
+        reg.tops.insert(
+            "small_top".into(),
+            BaseStats {
+                id: "small_top".into(),
+                name: "Small Top".into(),
+                spin_hp_max: SpinHp(80.0),
+                radius: Radius(0.35),
+                move_speed: MetersPerSec(6.0),
+                accel: 30.0,
+                control_reduction: 0.0,
+            },
+        );
 
         // ── Weapons ────────────────────────────────────────────────
         reg.weapons.insert(
@@ -74,6 +91,7 @@ impl PartRegistry {
         chassis_id: &str,
         screw_id: &str,
     ) -> Option<Build> {
+        let top = self.tops.get(top_id)?.clone();
         let weapon = self.weapons.get(weapon_id)?.clone();
         let shaft = self.shafts.get(shaft_id)?.clone();
         let chassis = self.chassis.get(chassis_id)?.clone();
@@ -81,7 +99,7 @@ impl PartRegistry {
 
         Some(Build {
             id: build_id.into(),
-            top_id: top_id.into(),
+            top,
             weapon,
             shaft,
             chassis,

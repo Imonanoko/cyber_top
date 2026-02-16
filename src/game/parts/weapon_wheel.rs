@@ -27,15 +27,15 @@ pub struct MeleeSpec {
 impl Default for MeleeSpec {
     fn default() -> Self {
         Self {
-            base_damage: 5.0,
+            base_damage: 5.5,
             hit_cooldown: 0.5,
             max_hits_per_rotation: 0,
-            hitbox_radius: 1.0,
+            hitbox_radius: 2.5,
             hitbox_angle: std::f32::consts::FRAC_PI_3, // 60 degrees
             hit_control: None,
             spin_rate_multiplier: 1.0,
-            blade_len: 0.8,
-            blade_thick: 0.25,
+            blade_len: 2.3,
+            blade_thick: 0.3,
         }
     }
 }
@@ -70,19 +70,19 @@ pub struct RangedSpec {
 impl Default for RangedSpec {
     fn default() -> Self {
         Self {
-            projectile_damage: 6.0,
-            fire_rate: 4.0,
+            projectile_damage: 7.0,
+            fire_rate: 3.0,
             burst_count: 1,
             spread_angle: 0.0,
             knockback_distance: 0.0,
-            projectile_radius: 0.15,
+            projectile_radius: 0.3,
             control_duration: Seconds(0.0),
             lifetime: Seconds(2.0),
-            projectile_speed: 10.0,
+            projectile_speed: 15.0,
             aim_mode: AimMode::FollowSpin,
             spin_rate_multiplier: 0.3,
-            barrel_len: 0.6,
-            barrel_thick: 0.15
+            barrel_len: 1.0,
+            barrel_thick: 0.3
         }
     }
 }

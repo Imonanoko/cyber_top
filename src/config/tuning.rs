@@ -50,7 +50,7 @@ impl Default for Tuning {
             wall_damage_k: 0.0,
             size_damage_k: 0.0,
             size_radius_ref: 1.0,
-            max_speed: 8.0,
+            max_speed: 30.0,
             input_accel: 25.0,
             melee_speed_scale_k: 0.0,
             obstacle_damage: 2.0,

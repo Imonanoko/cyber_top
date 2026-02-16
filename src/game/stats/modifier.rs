@@ -45,6 +45,7 @@ pub struct ModifierSet {
     pub spin_hp_max: StatModifier,
     pub radius: StatModifier,
     pub move_speed: StatModifier,
+    pub accel: StatModifier,
     /// Each control_reduction source contributes a ratio r_i.
     pub control_reduction_sources: Vec<f32>,
     pub stability: StatModifier,
@@ -60,6 +61,7 @@ impl ModifierSet {
             spin_hp_max: StatModifier::identity(),
             radius: StatModifier::identity(),
             move_speed: StatModifier::identity(),
+            accel: StatModifier::identity(),
             control_reduction_sources: Vec::new(),
             stability: StatModifier::identity(),
             spin_efficiency: StatModifier::identity(),
@@ -77,6 +79,8 @@ impl ModifierSet {
         self.radius.mul *= other.radius.mul;
         self.move_speed.add += other.move_speed.add;
         self.move_speed.mul *= other.move_speed.mul;
+        self.accel.add += other.accel.add;
+        self.accel.mul *= other.accel.mul;
         self.control_reduction_sources
             .extend(&other.control_reduction_sources);
         self.stability.add += other.stability.add;
@@ -107,6 +111,8 @@ impl ModifierSet {
         let big_r = combined - 1.0;
         let control_multiplier = (1.0 - big_r).max(0.0);
 
+        let accel = self.accel.apply(base.accel).max(0.0);
+
         let stability = self.stability.apply(0.0).max(0.0);
         let spin_efficiency = self.spin_efficiency.apply(1.0).clamp(0.0, 10.0);
 
@@ -114,6 +120,7 @@ impl ModifierSet {
             spin_hp_max: super::types::SpinHp(spin_hp_max),
             radius: super::types::Radius(radius),
             move_speed: super::types::MetersPerSec(move_speed),
+            accel,
             control_multiplier,
             spin_drain_idle_per_sec: tuning.spin_drain_idle_per_sec / spin_efficiency,
             spin_drain_on_wall_hit: tuning.spin_drain_on_wall_hit,

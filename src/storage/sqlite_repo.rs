@@ -49,7 +49,7 @@ impl SqliteRepo {
                VALUES (?, ?, ?, ?, ?, ?, ?)"#,
         )
         .bind(&build.id)
-        .bind(&build.top_id)
+        .bind(&build.top.id)
         .bind(weapon_id)
         .bind(shaft_id)
         .bind(chassis_id)
@@ -71,11 +71,14 @@ impl SqliteRepo {
         .await?;
 
         Ok(row.map(
-            |(id, top_id, _weapon_id, _shaft_id, _chassis_id, _screw_id, note)| {
+            |(id, top_id, _weapon_id, _shaft_id, _chassis_id, _screw_id, note): (String, String, String, String, String, String, String)| {
                 // For v0, return default build with correct IDs
+                // top_id is used to look up BaseStats from registry (future)
+                let mut top = crate::game::stats::base::BaseStats::default();
+                top.id = top_id;
                 Build {
                     id,
-                    top_id,
+                    top,
                     note: if note.is_empty() {
                         None
                     } else {

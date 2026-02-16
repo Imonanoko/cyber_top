@@ -138,8 +138,9 @@ src/
 - `handle_despawn_events()` — despawns entities from `DespawnEntity` events
 
 ### `src/game/parts/`
-- `Build` — complete top configuration (weapon + shaft + chassis + screw), holds full specs inline for runtime efficiency
-- `registry.rs` — `PartRegistry` resource: stores all available parts by ID in `HashMap<String, _>`. Currently populated with hardcoded presets via `with_defaults()`. Future: load from `parts` DB table (`id, slot, kind, spec_json`). Provides `resolve_build()` to assemble a `Build` from part IDs.
+- `Build` — complete top configuration (top base stats + weapon + shaft + chassis + screw), holds `BaseStats` + full specs inline
+- `registry.rs` — `PartRegistry` resource: stores tops and parts by ID in `HashMap<String, _>`. Provides `resolve_build()` to assemble a `Build` from IDs.
+  - Preset tops: `"default_top"` (HP=100, radius=0.5, speed=5.0), `"small_top"` (HP=80, radius=0.35, speed=6.0)
   - Preset weapons: `"basic_blade"` (melee), `"basic_blaster"` (ranged)
   - Preset parts: `"standard_shaft"`, `"standard_chassis"`, `"standard_screw"`
 - `weapon_wheel.rs` — weapon definition with optional `MeleeSpec` and `RangedSpec`. Each spec carries its own per-weapon parameters:
@@ -147,14 +148,14 @@ src/
   - `RangedSpec`: `barrel_len`, `barrel_thick` (visual size), `projectile_radius` (bullet size), `spin_rate_multiplier`
   - `WeaponWheelSpec::spin_rate_multiplier()` — returns the active spec's value (hybrid: max of both)
 - `ShaftSpec` — stability + spin efficiency
-- `ChassisSpec` — move speed modifiers
+- `ChassisSpec` — move speed + acceleration + collision radius modifiers (`move_speed_add/mul`, `accel_add/mul`, `radius_add/mul`)
 - `TraitScrewSpec` — passive stat bonuses + event hooks
 
 ### `src/game/stats/`
 - `types.rs` — Newtypes with safe arithmetic (`SpinHp`, `Radius`, `MetersPerSec`, `Seconds`, `Multiplier`, `AngleRad`)
-- `base.rs` — `BaseStats` immutable defaults (spin_hp=100, radius=1.2, move_speed=100)
-- `effective.rs` — `EffectiveStats` pre-computed stats (read during combat)
-- `modifier.rs` — `StatModifier` (add/mul/clamp), `ModifierSet`, `compute_effective()` pipeline
+- `base.rs` — `BaseStats` per-top base parameters (id, name, spin_hp_max, radius, move_speed, accel, control_reduction). Stored in `PartRegistry.tops` and `Build.top`.
+- `effective.rs` — `EffectiveStats` pre-computed stats including `accel` (read during combat)
+- `modifier.rs` — `StatModifier` (add/mul/clamp), `ModifierSet` (includes `accel`), `compute_effective()` pipeline
 
 ### `src/plugins/game_plugin.rs`
 - **FixedGameSet** ordering: Physics -> CollisionDetect -> EventGenerate -> HookProcess -> EventApply -> Cleanup

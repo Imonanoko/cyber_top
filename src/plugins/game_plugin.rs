@@ -11,7 +11,7 @@ use crate::game::{
     hooks,
     parts::registry::PartRegistry,
     physics,
-    stats::{base::BaseStats, types::*},
+    stats::types::*,
 };
 
 // ── SystemSets (strict FixedUpdate ordering, battle-phase only) ─────
@@ -185,8 +185,6 @@ fn setup_game(
     // Part registry (future: load from DB)
     let registry = PartRegistry::with_defaults();
 
-    let base = BaseStats::default();
-
     // Player build: ranged weapon (looked up from registry)
     let player_build = registry
         .resolve_build(
@@ -199,7 +197,7 @@ fn setup_game(
         )
         .expect("player build parts not found in registry");
     let player_mods = player_build.combined_modifiers();
-    let player_effective = player_mods.compute_effective(&base, &tuning);
+    let player_effective = player_mods.compute_effective(&player_build.top, &tuning);
 
     let player_radius = player_effective.radius.0;
     let player_mesh = meshes.add(Circle::new(player_radius));
@@ -253,7 +251,7 @@ fn setup_game(
     let ai_build = registry
         .resolve_build(
             "ai_build",
-            "ai_top",
+            "default_top",
             "basic_blade",
             "standard_shaft",
             "standard_chassis",
@@ -261,7 +259,7 @@ fn setup_game(
         )
         .expect("AI build parts not found in registry");
     let ai_mods = ai_build.combined_modifiers();
-    let ai_effective = ai_mods.compute_effective(&base, &tuning);
+    let ai_effective = ai_mods.compute_effective(&ai_build.top, &tuning);
     let ai_radius = ai_effective.radius.0;
     let ai_mesh = meshes.add(Circle::new(ai_radius));
 

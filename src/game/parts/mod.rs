@@ -10,13 +10,14 @@ use self::chassis::ChassisSpec;
 use self::shaft::ShaftSpec;
 use self::trait_screw::TraitScrewSpec;
 use self::weapon_wheel::WeaponWheelSpec;
+use crate::game::stats::base::BaseStats;
 use crate::game::stats::modifier::ModifierSet;
 
 /// A complete build: top + 4 parts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Build {
     pub id: String,
-    pub top_id: String,
+    pub top: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
     pub chassis: ChassisSpec,
@@ -39,7 +40,7 @@ impl Default for Build {
     fn default() -> Self {
         Self {
             id: "default_build".into(),
-            top_id: "default_top".into(),
+            top: BaseStats::default(),
             weapon: WeaponWheelSpec::default(),
             shaft: ShaftSpec::default(),
             chassis: ChassisSpec::default(),
