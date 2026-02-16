@@ -32,7 +32,7 @@ pub fn spawn_obstacles(
     }
 }
 
-/// Spawn projectile entities from SpawnProjectile events (with visible mesh).
+/// Spawn projectile entities from SpawnProjectile events (with visible mesh or sprite).
 pub fn spawn_projectiles(
     mut commands: Commands,
     mut events: MessageReader<GameEvent>,
@@ -47,20 +47,36 @@ pub fn spawn_projectiles(
             damage,
             radius,
             lifetime,
+            weapon_id,
         } = event
         {
-            commands.spawn((
+            let tf = Transform::from_translation(Vec3::new(position.x, position.y, 0.5));
+            let mut entity = commands.spawn((
                 ProjectileMarker,
-                Mesh2d(proj_assets.mesh.clone()),
-                MeshMaterial2d(proj_assets.material.clone()),
-                Transform::from_translation(Vec3::new(position.x, position.y, 0.5))
-                    .with_scale(Vec3::splat(*radius)),
                 Velocity(*direction * *speed),
                 CollisionRadius(*radius),
                 ProjectileOwner(*src),
                 ProjectileDamage(*damage),
                 Lifetime(crate::game::stats::types::Seconds(*lifetime)),
             ));
+
+            if let Some(sprite_handle) = proj_assets.sprites.get(weapon_id) {
+                let diameter = *radius * 2.0;
+                entity.insert((
+                    Sprite {
+                        image: sprite_handle.clone(),
+                        custom_size: Some(Vec2::new(diameter, diameter)),
+                        ..default()
+                    },
+                    tf,
+                ));
+            } else {
+                entity.insert((
+                    Mesh2d(proj_assets.mesh.clone()),
+                    MeshMaterial2d(proj_assets.material.clone()),
+                    tf.with_scale(Vec3::splat(*radius)),
+                ));
+            }
         }
     }
 }

@@ -14,6 +14,9 @@ pub struct BaseStats {
     pub accel: f32,
     /// Control reduction ratio (positive = reduces control duration).
     pub control_reduction: f32,
+    /// Optional sprite path override (defaults to "tops/{id}.png").
+    #[serde(default)]
+    pub sprite_path: Option<String>,
 }
 
 impl Default for BaseStats {
@@ -26,6 +29,7 @@ impl Default for BaseStats {
             move_speed: MetersPerSec(10.0),
             accel: 25.0,
             control_reduction: 0.0,
+            sprite_path: None,
         }
     }
 }

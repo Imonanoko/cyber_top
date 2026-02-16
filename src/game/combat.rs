@@ -167,6 +167,7 @@ pub fn fire_ranged_weapons(
 
             let pos = transform.translation.truncate();
             let dir = Vec2::new(angle.0 .0.cos(), angle.0 .0.sin());
+            let wid = build.0.weapon.id.clone();
 
             if ranged.burst_count <= 1 && ranged.spread_angle <= 0.0 {
                 events.write(GameEvent::SpawnProjectile {
@@ -177,6 +178,7 @@ pub fn fire_ranged_weapons(
                     damage: ranged.projectile_damage,
                     radius: ranged.projectile_radius,
                     lifetime: ranged.lifetime.0,
+                    weapon_id: wid,
                 });
             } else {
                 let count = ranged.burst_count.max(1);
@@ -199,6 +201,7 @@ pub fn fire_ranged_weapons(
                         damage: ranged.projectile_damage,
                         radius: ranged.projectile_radius,
                         lifetime: ranged.lifetime.0,
+                        weapon_id: wid.clone(),
                     });
                 }
             }

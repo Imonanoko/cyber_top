@@ -33,9 +33,9 @@ impl Default for MeleeSpec {
             hitbox_radius: 2.5,
             hitbox_angle: std::f32::consts::FRAC_PI_3, // 60 degrees
             hit_control: None,
-            spin_rate_multiplier: 1.0,
+            spin_rate_multiplier: 0.8,
             blade_len: 2.3,
-            blade_thick: 0.3,
+            blade_thick: 0.4,
         }
     }
 }
@@ -75,12 +75,12 @@ impl Default for RangedSpec {
             burst_count: 1,
             spread_angle: 0.0,
             knockback_distance: 0.0,
-            projectile_radius: 0.3,
+            projectile_radius: 0.5,
             control_duration: Seconds(0.0),
             lifetime: Seconds(2.0),
             projectile_speed: 15.0,
             aim_mode: AimMode::FollowSpin,
-            spin_rate_multiplier: 0.3,
+            spin_rate_multiplier: 0.2,
             barrel_len: 1.0,
             barrel_thick: 0.3
         }
@@ -95,6 +95,12 @@ pub struct WeaponWheelSpec {
     pub kind: WeaponKind,
     pub melee: Option<MeleeSpec>,
     pub ranged: Option<RangedSpec>,
+    /// Optional weapon sprite path override (defaults to "weapons/{id}.png").
+    #[serde(default)]
+    pub sprite_path: Option<String>,
+    /// Optional projectile sprite path override (defaults to "projectiles/{id}_projectile.png").
+    #[serde(default)]
+    pub projectile_sprite_path: Option<String>,
 }
 
 impl WeaponWheelSpec {
@@ -118,6 +124,8 @@ impl Default for WeaponWheelSpec {
             kind: WeaponKind::Melee,
             melee: Some(MeleeSpec::default()),
             ranged: None,
+            sprite_path: None,
+            projectile_sprite_path: None,
         }
     }
 }

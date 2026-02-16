@@ -63,7 +63,7 @@ SystemSets in strict chain order:
    spawn_obstacles → spawn_projectiles
 
 6. CleanupSet (chained):
-   despawn_projectiles_outside_arena → cleanup_ttl → handle_despawn_events
+   despawn_projectiles_outside_arena → cleanup_ttl → handle_despawn_events → play_sound_effects
 ```
 
 ---
@@ -76,8 +76,8 @@ SystemSets in strict chain order:
 | `PartRegistry` | Data-driven part presets (tops, weapons, shafts, etc.) |
 | `GameSelection` | Current mode, map, P1/P2 top and weapon IDs |
 | `PickingFor` | Which player (1 or 2) is in the picker screen |
-| `ProjectileAssets` | Pre-built mesh/material for projectile rendering |
-| `AssetsMap` | Skin color lookup (placeholder for sprites) |
+| `ProjectileAssets` | Projectile mesh/material + per-weapon sprite handles |
+| `GameAssets` | All sprite handles + SFX handles, loaded at startup |
 
 ---
 
@@ -93,7 +93,7 @@ SystemSets in strict chain order:
 ## Message System (Bevy B0002 workaround)
 
 - `CollisionMessage`: Top-Top collision data (separate type to avoid Res/ResMut conflict)
-- `GameEvent`: DealDamage, ApplyControl, ApplyStatus, SpawnProjectile, SpawnObstacle, DespawnEntity
+- `GameEvent`: DealDamage, ApplyControl, ApplyStatus, SpawnProjectile (includes `weapon_id` for sprite lookup), SpawnObstacle, DespawnEntity
 
 ---
 
@@ -105,12 +105,46 @@ SystemSets in strict chain order:
 
 ---
 
+## Asset System
+
+### Convention-Based Loading
+- Top ID `"default_top"` → `assets/tops/default_top.png`
+- Weapon ID `"basic_blade"` → `assets/weapons/basic_blade.png`
+- Ranged weapon `"basic_blaster"` → `assets/projectiles/basic_blaster_projectile.png`
+- Override via optional `sprite_path` / `projectile_sprite_path` fields in `BaseStats` / `WeaponWheelSpec`
+
+### Fallback Strategy
+- **Missing image** → procedural mesh with fallback color (game renders identically to pre-sprite era)
+- **Missing audio** → silence (Bevy handles missing audio gracefully)
+- No code changes needed to add new tops — just drop `{id}.png` in `assets/tops/`
+
+### Rendering
+- Game entities: `Sprite { image, custom_size }` (world-unit sized), else `Mesh2d` + `MeshMaterial2d`
+- UI previews: `ImageNode` in picker cards, else colored `Node` with `BackgroundColor`
+
+### Audio
+- `SfxHandles` holds 6 sound effect handles: launch, collision_top, collision_wall, melee_hit, ranged_fire, projectile_hit
+- `play_sound_effects` system in CleanupSet reads `GameEvent` + `CollisionMessage`, spawns one-shot `AudioPlayer::<AudioSource>` with `PlaybackSettings::DESPAWN`
+- Launch sound played in `launch_tops()` on battle entry
+
+### Asset Directory Structure
+```
+assets/
+  tops/           # {top_id}.png — 128x128, facing right (+X)
+  weapons/        # {weapon_id}.png — weapon shape, facing right
+  projectiles/    # {weapon_id}_projectile.png — projectile shape
+  audio/sfx/      # launch.ogg, collision_top.ogg, collision_wall.ogg,
+                  # melee_hit.ogg, ranged_fire.ogg, projectile_hit.ogg
+```
+
+---
+
 ## Key Design Decisions
 
 - **Coordinate system**: All positions/sizes in world units. Camera `OrthographicProjection` with `scale = 1/pixels_per_unit` handles zoom.
 - **Elastic collisions**: `wall_bounce_damping = 1.0` and `top_collisions_restitution = 1.0` by default.
 - **Weapon visuals**: Spawned as child entities of tops. Parent rotation auto-rotates children.
-- **Projectile visuals**: Unit circle mesh scaled per-projectile via `Transform.scale`.
+- **Projectile visuals**: Sprite if weapon has projectile sprite, else unit circle mesh scaled via `Transform.scale`.
 - **Data-driven parts**: `PartRegistry` holds all parts by ID. `setup_arena()` uses `resolve_build()` to assemble builds from IDs.
 - **Initial aim direction**: Each top starts aimed toward the opponent (P1: angle 0, P2: angle PI).
 

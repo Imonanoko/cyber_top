@@ -73,6 +73,8 @@ pub struct WeaponVisual;
 pub struct ProjectileAssets {
     pub mesh: Handle<Mesh>,
     pub material: Handle<ColorMaterial>,
+    /// Weapon ID → projectile sprite handle (for sprite-based rendering).
+    pub sprites: std::collections::HashMap<String, Handle<Image>>,
 }
 
 // ── Top runtime state ───────────────────────────────────────────────

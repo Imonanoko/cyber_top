@@ -39,6 +39,7 @@ impl PartRegistry {
                 move_speed: MetersPerSec(6.0),
                 accel: 30.0,
                 control_reduction: 0.0,
+                sprite_path: None,
             },
         );
 
@@ -51,6 +52,8 @@ impl PartRegistry {
                 kind: WeaponKind::Melee,
                 melee: Some(MeleeSpec::default()),
                 ranged: None,
+                sprite_path: None,
+                projectile_sprite_path: None,
             },
         );
 
@@ -62,6 +65,8 @@ impl PartRegistry {
                 kind: WeaponKind::Ranged,
                 melee: None,
                 ranged: Some(RangedSpec::default()),
+                sprite_path: None,
+                projectile_sprite_path: None,
             },
         );
 

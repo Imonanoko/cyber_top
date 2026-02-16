@@ -1,6 +1,7 @@
 use bevy::ecs::hierarchy::ChildSpawnerCommands;
 use bevy::prelude::*;
 
+use crate::assets_map::GameAssets;
 use crate::game::components::GamePhase;
 use crate::game::parts::registry::PartRegistry;
 
@@ -573,6 +574,7 @@ fn spawn_top_picker(
     selection: Res<GameSelection>,
     picking: Res<PickingFor>,
     registry: Res<PartRegistry>,
+    game_assets: Option<Res<GameAssets>>,
 ) {
     let player = picking.0;
     let (cur_top, cur_weapon) = if player == 1 {
@@ -618,7 +620,8 @@ fn spawn_top_picker(
                 top_ids.sort();
                 for id in top_ids {
                     let stats = &registry.tops[id];
-                    spawn_top_card(grid, id, stats, *cur_top == *id);
+                    let sprite = game_assets.as_ref().and_then(|a| a.top_sprites.get(id.as_str()).cloned());
+                    spawn_top_card(grid, id, stats, *cur_top == *id, sprite);
                 }
             });
 
@@ -636,7 +639,8 @@ fn spawn_top_picker(
                 weapon_ids.sort();
                 for id in weapon_ids {
                     let weapon = &registry.weapons[id];
-                    spawn_weapon_card(grid, id, weapon, *cur_weapon == *id);
+                    let sprite = game_assets.as_ref().and_then(|a| a.weapon_sprites.get(id.as_str()).cloned());
+                    spawn_weapon_card(grid, id, weapon, *cur_weapon == *id, sprite);
                 }
             });
 
@@ -658,6 +662,7 @@ fn spawn_top_card(
     id: &str,
     stats: &crate::game::stats::base::BaseStats,
     selected: bool,
+    sprite: Option<Handle<Image>>,
 ) {
     let card_bg = if selected { COLOR_CARD_SELECTED } else { COLOR_CARD };
     let radius_px = (stats.radius.0 * 80.0).clamp(20.0, 80.0);
@@ -677,17 +682,30 @@ fn spawn_top_card(
         },
         BackgroundColor(card_bg),
     )).with_children(|card| {
-        // Preview circle (scaled by radius)
-        card.spawn((
-            PreviewCircle,
-            Node {
-                width: Val::Px(radius_px * 2.0),
-                height: Val::Px(radius_px * 2.0),
-                border_radius: BorderRadius::all(Val::Px(radius_px)),
-                ..default()
-            },
-            BackgroundColor(Color::srgb(0.2, 0.6, 1.0)),
-        ));
+        if let Some(handle) = sprite {
+            // Sprite preview
+            card.spawn((
+                PreviewCircle,
+                ImageNode { image: handle, ..default() },
+                Node {
+                    width: Val::Px(radius_px * 2.0),
+                    height: Val::Px(radius_px * 2.0),
+                    ..default()
+                },
+            ));
+        } else {
+            // Fallback: colored circle
+            card.spawn((
+                PreviewCircle,
+                Node {
+                    width: Val::Px(radius_px * 2.0),
+                    height: Val::Px(radius_px * 2.0),
+                    border_radius: BorderRadius::all(Val::Px(radius_px)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgb(0.2, 0.6, 1.0)),
+            ));
+        }
         // Name
         card.spawn((
             Text::new(&stats.name),
@@ -709,6 +727,7 @@ fn spawn_weapon_card(
     id: &str,
     weapon: &crate::game::parts::weapon_wheel::WeaponWheelSpec,
     selected: bool,
+    sprite: Option<Handle<Image>>,
 ) {
     let card_bg = if selected { COLOR_CARD_SELECTED } else { COLOR_CARD };
     let kind_str = format!("{:?}", weapon.kind);
@@ -753,17 +772,30 @@ fn spawn_weapon_card(
         },
         BackgroundColor(card_bg),
     )).with_children(|card| {
-        // Preview rectangle (weapon shape)
-        card.spawn((
-            Node {
-                width: Val::Px(preview_w.max(30.0)),
-                height: Val::Px(preview_h.max(8.0)),
-                border_radius: BorderRadius::all(Val::Px(3.0)),
-                margin: UiRect::vertical(Val::Px(10.0)),
-                ..default()
-            },
-            BackgroundColor(color),
-        ));
+        if let Some(handle) = sprite {
+            // Sprite preview
+            card.spawn((
+                ImageNode { image: handle, ..default() },
+                Node {
+                    width: Val::Px(preview_w.max(30.0)),
+                    height: Val::Px(preview_h.max(8.0)),
+                    margin: UiRect::vertical(Val::Px(10.0)),
+                    ..default()
+                },
+            ));
+        } else {
+            // Fallback: colored rectangle
+            card.spawn((
+                Node {
+                    width: Val::Px(preview_w.max(30.0)),
+                    height: Val::Px(preview_h.max(8.0)),
+                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                    margin: UiRect::vertical(Val::Px(10.0)),
+                    ..default()
+                },
+                BackgroundColor(color),
+            ));
+        }
         // Name
         card.spawn((
             Text::new(&weapon.name),

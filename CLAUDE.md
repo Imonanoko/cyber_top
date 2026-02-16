@@ -63,4 +63,14 @@ All sets gated to `GamePhase::Battle` and chained in strict order. See `docs/arc
 | `Tuning` | `src/config/tuning.rs` | All tunable constants |
 | `PartRegistry` | `src/game/parts/registry.rs` | Data-driven part/top/weapon presets |
 | `GameSelection` | `src/plugins/menu_plugin.rs` | Current mode, map, P1/P2 selections |
-| `ProjectileAssets` | `src/game/components.rs` | Pre-built mesh/material for bullets |
+| `GameAssets` | `src/assets_map.rs` | Sprite handles + SFX handles, loaded at startup |
+| `ProjectileAssets` | `src/game/components.rs` | Projectile mesh/material + per-weapon sprite handles |
+
+## Asset System
+
+Convention-based: top ID `"default_top"` → `assets/tops/default_top.png`. Override via optional `sprite_path` field in specs.
+
+- **Missing image** → procedural mesh fallback (game looks the same as without assets)
+- **Missing audio** → silence (Bevy handles gracefully)
+- Audio: one-shot `AudioPlayer` entities with `PlaybackSettings::DESPAWN`
+- Sprites: `Sprite { image, custom_size }` for game entities, `ImageNode` for UI previews

@@ -39,6 +39,7 @@ pub enum GameEvent {
         damage: f32,
         radius: f32,
         lifetime: f32,
+        weapon_id: String,
     },
     SpawnObstacle {
         src: Option<Entity>,

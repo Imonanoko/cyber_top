@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 use bevy::camera::ScalingMode;
+use std::collections::HashMap;
 use std::f32::consts::PI;
 
+use crate::assets_map::GameAssets;
+use crate::assets_map::SfxHandles;
 use crate::config::tuning::Tuning;
 use crate::game::{
     arena::{circle, obstacle},
@@ -112,13 +115,13 @@ impl Plugin for GamePlugin {
         // CleanupSet
         app.add_systems(
             FixedUpdate,
-            (circle::despawn_projectiles_outside_arena, obstacle::cleanup_ttl, obstacle::handle_despawn_events)
+            (circle::despawn_projectiles_outside_arena, obstacle::cleanup_ttl, obstacle::handle_despawn_events, play_sound_effects)
                 .chain()
                 .in_set(FixedGameSet::CleanupSet),
         );
 
-        // ── Startup: camera + registry (persist forever) ─────────────
-        app.add_systems(Startup, setup_camera);
+        // ── Startup: camera + registry + assets ──────────────────────
+        app.add_systems(Startup, (setup_camera, load_game_assets).chain());
 
         // ── OnEnter(Aiming): spawn arena + tops from selection ───────
         app.add_systems(OnEnter(GamePhase::Aiming), setup_arena);
@@ -172,6 +175,135 @@ fn setup_camera(
     commands.insert_resource(PartRegistry::with_defaults());
 }
 
+// ── Startup: load all game assets ────────────────────────────────────
+
+fn load_game_assets(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    registry: Res<PartRegistry>,
+) {
+    let mut top_sprites = HashMap::new();
+    let mut weapon_sprites = HashMap::new();
+    let mut projectile_sprites = HashMap::new();
+    let mut fallback_colors = HashMap::new();
+
+    // Load top sprites
+    for (id, stats) in &registry.tops {
+        let path = stats.sprite_path.clone()
+            .unwrap_or_else(|| format!("tops/{}.png", id));
+        top_sprites.insert(id.clone(), asset_server.load(&path));
+    }
+
+    // Load weapon sprites
+    for (id, weapon) in &registry.weapons {
+        let path = weapon.sprite_path.clone()
+            .unwrap_or_else(|| format!("weapons/{}.png", id));
+        weapon_sprites.insert(id.clone(), asset_server.load(&path));
+
+        // Load projectile sprite for ranged weapons
+        if weapon.ranged.is_some() {
+            let proj_path = weapon.projectile_sprite_path.clone()
+                .unwrap_or_else(|| format!("projectiles/{}_projectile.png", id));
+            projectile_sprites.insert(id.clone(), asset_server.load(&proj_path));
+        }
+    }
+
+    // Fallback colors (used when sprite files are missing)
+    fallback_colors.insert("default_top".into(), Color::srgb(0.2, 0.6, 1.0));
+    fallback_colors.insert("small_top".into(), Color::srgb(1.0, 0.2, 0.2));
+    fallback_colors.insert("basic_blade".into(), Color::srgb(0.9, 0.9, 1.0));
+    fallback_colors.insert("basic_blaster".into(), Color::srgb(0.9, 0.9, 1.0));
+
+    // Load SFX
+    let sfx = SfxHandles {
+        launch: asset_server.load("audio/sfx/launch.ogg"),
+        collision_top: asset_server.load("audio/sfx/collision_top.ogg"),
+        collision_wall: asset_server.load("audio/sfx/collision_wall.ogg"),
+        melee_hit: asset_server.load("audio/sfx/melee_hit.ogg"),
+        ranged_fire: asset_server.load("audio/sfx/ranged_fire.ogg"),
+        projectile_hit: asset_server.load("audio/sfx/projectile_hit.ogg"),
+    };
+
+    commands.insert_resource(GameAssets {
+        top_sprites,
+        weapon_sprites,
+        projectile_sprites,
+        fallback_colors,
+        sfx,
+    });
+}
+
+// ── Visual helpers ───────────────────────────────────────────────────
+
+/// Insert top visual components: sprite if available, else procedural mesh.
+fn insert_top_visual(
+    entity: &mut EntityCommands,
+    top_id: &str,
+    radius: f32,
+    game_assets: &GameAssets,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) {
+    if let Some(sprite_handle) = game_assets.top_sprite(top_id) {
+        let diameter = radius * 2.0;
+        entity.insert(Sprite {
+            image: sprite_handle.clone(),
+            custom_size: Some(Vec2::new(diameter, diameter)),
+            ..default()
+        });
+    } else {
+        let mesh = meshes.add(Circle::new(radius));
+        let color = game_assets.fallback_color(top_id);
+        entity.insert((
+            Mesh2d(mesh),
+            MeshMaterial2d(materials.add(color)),
+        ));
+    }
+}
+
+/// Spawn weapon visual child entity: sprite if available, else procedural mesh.
+fn spawn_weapon_visual(
+    parent: &mut ChildSpawnerCommands,
+    weapon: &crate::game::parts::weapon_wheel::WeaponWheelSpec,
+    top_radius: f32,
+    game_assets: &GameAssets,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+) {
+    let (len, thick) = match weapon.kind {
+        WeaponKind::Ranged => {
+            let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
+            (r.barrel_len, r.barrel_thick)
+        }
+        WeaponKind::Melee | WeaponKind::Hybrid => {
+            let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
+            (m.blade_len, m.blade_thick)
+        }
+    };
+    let tf = Transform::from_translation(Vec3::new(top_radius + len * 0.5, 0.0, 0.5));
+
+    if let Some(sprite_handle) = game_assets.weapon_sprite(&weapon.id) {
+        parent.spawn((
+            WeaponVisual,
+            Sprite {
+                image: sprite_handle.clone(),
+                custom_size: Some(Vec2::new(len, thick)),
+                ..default()
+            },
+            tf,
+        ));
+    } else {
+        let mesh = meshes.add(Rectangle::new(len, thick));
+        let color = game_assets.fallback_color(&weapon.id);
+        parent.spawn((
+            WeaponVisual,
+            Mesh2d(mesh),
+            MeshMaterial2d(materials.add(color)),
+            tf,
+        ));
+    }
+}
+
 // ── OnEnter(Aiming): spawn arena + tops ──────────────────────────────
 
 fn setup_arena(
@@ -179,6 +311,7 @@ fn setup_arena(
     tuning: Res<Tuning>,
     registry: Res<PartRegistry>,
     selection: Res<GameSelection>,
+    game_assets: Res<GameAssets>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -193,12 +326,13 @@ fn setup_arena(
         Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
     ));
 
-    // Projectile assets
+    // Projectile assets (mesh fallback + sprite handles)
     let proj_mesh = meshes.add(Circle::new(1.0));
     let proj_mat = materials.add(Color::srgb(1.0, 1.0, 0.2));
     commands.insert_resource(ProjectileAssets {
         mesh: proj_mesh,
         material: proj_mat,
+        sprites: game_assets.projectile_sprites.clone(),
     });
 
     // ── Player 1 ─────────────────────────────────────────────────────
@@ -215,34 +349,25 @@ fn setup_arena(
     let p1_mods = p1_build.combined_modifiers();
     let p1_effective = p1_mods.compute_effective(&p1_build.top, &tuning);
     let p1_radius = p1_effective.radius.0;
-    let p1_mesh = meshes.add(Circle::new(p1_radius));
-    let p1_weapon_mesh = spawn_weapon_visual_mesh(&p1_build.weapon, p1_radius, &mut meshes);
 
-    commands
-        .spawn((
-            InGame,
-            Top,
-            PlayerControlled,
-            Mesh2d(p1_mesh),
-            MeshMaterial2d(materials.add(Color::srgb(0.2, 0.6, 1.0))),
-            Transform::from_translation(Vec3::new(-3.0, 0.0, 0.0)),
-            Velocity(Vec2::ZERO),
-            RotationAngle(AngleRad::new(0.0)),
-            SpinHpCurrent(p1_effective.spin_hp_max),
-            TopEffectiveStats(p1_effective.clone()),
-            TopBuild(p1_build),
-            ControlState::default(),
-            StatusEffects::default(),
-            (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                WeaponVisual,
-                Mesh2d(p1_weapon_mesh.0),
-                MeshMaterial2d(materials.add(Color::srgb(0.9, 0.9, 1.0))),
-                p1_weapon_mesh.1,
-            ));
-        });
+    let mut p1_entity = commands.spawn((
+        InGame,
+        Top,
+        PlayerControlled,
+        Transform::from_translation(Vec3::new(-3.0, 0.0, 0.0)),
+        Velocity(Vec2::ZERO),
+        RotationAngle(AngleRad::new(0.0)),
+        SpinHpCurrent(p1_effective.spin_hp_max),
+        TopEffectiveStats(p1_effective.clone()),
+        TopBuild(p1_build.clone()),
+        ControlState::default(),
+        StatusEffects::default(),
+        (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
+    ));
+    insert_top_visual(&mut p1_entity, &selection.p1_top_id, p1_radius, &game_assets, &mut meshes, &mut materials);
+    p1_entity.with_children(|parent| {
+        spawn_weapon_visual(parent, &p1_build.weapon, p1_radius, &game_assets, &mut meshes, &mut materials);
+    });
 
     // P1 aim arrow
     let arrow_len = tuning.aim_arrow_len_px / ppu;
@@ -270,20 +395,16 @@ fn setup_arena(
     let p2_mods = p2_build.combined_modifiers();
     let p2_effective = p2_mods.compute_effective(&p2_build.top, &tuning);
     let p2_radius = p2_effective.radius.0;
-    let p2_mesh = meshes.add(Circle::new(p2_radius));
-    let p2_weapon_mesh = spawn_weapon_visual_mesh(&p2_build.weapon, p2_radius, &mut meshes);
 
     let mut p2_entity = commands.spawn((
         InGame,
         Top,
-        Mesh2d(p2_mesh),
-        MeshMaterial2d(materials.add(Color::srgb(1.0, 0.2, 0.2))),
         Transform::from_translation(Vec3::new(3.0, 0.0, 0.0)),
         Velocity(Vec2::ZERO),
         RotationAngle(AngleRad::new(PI)),
         SpinHpCurrent(p2_effective.spin_hp_max),
         TopEffectiveStats(p2_effective),
-        TopBuild(p2_build),
+        TopBuild(p2_build.clone()),
         ControlState::default(),
         StatusEffects::default(),
         (LaunchAim { angle: PI, confirmed: false }, MeleeHitTracker::default(), combat::RangedFireTimer::default()),
@@ -294,13 +415,9 @@ fn setup_arena(
         GameMode::PvP => { p2_entity.insert(Player2Controlled); }
     }
 
+    insert_top_visual(&mut p2_entity, &selection.p2_top_id, p2_radius, &game_assets, &mut meshes, &mut materials);
     p2_entity.with_children(|parent| {
-        parent.spawn((
-            WeaponVisual,
-            Mesh2d(p2_weapon_mesh.0),
-            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.9, 0.8))),
-            p2_weapon_mesh.1,
-        ));
+        spawn_weapon_visual(parent, &p2_build.weapon, p2_radius, &game_assets, &mut meshes, &mut materials);
     });
 
     // P2 aim arrow (PvP only — AI auto-aims so no arrow needed)
@@ -319,27 +436,6 @@ fn setup_arena(
                 .with_rotation(Quat::from_rotation_z(PI)),
         ));
     }
-}
-
-/// Create weapon visual mesh + transform based on weapon spec.
-fn spawn_weapon_visual_mesh(
-    weapon: &crate::game::parts::weapon_wheel::WeaponWheelSpec,
-    top_radius: f32,
-    meshes: &mut ResMut<Assets<Mesh>>,
-) -> (Handle<Mesh>, Transform) {
-    let (len, thick) = match weapon.kind {
-        WeaponKind::Ranged => {
-            let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
-            (r.barrel_len, r.barrel_thick)
-        }
-        WeaponKind::Melee | WeaponKind::Hybrid => {
-            let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
-            (m.blade_len, m.blade_thick)
-        }
-    };
-    let mesh = meshes.add(Rectangle::new(len, thick));
-    let tf = Transform::from_translation(Vec3::new(top_radius + len * 0.5, 0.0, 0.5));
-    (mesh, tf)
 }
 
 // ── Cleanup on return to MainMenu ────────────────────────────────────
@@ -475,13 +571,23 @@ fn update_aim_arrow(
 
 // ── OnEnter(Battle) systems ─────────────────────────────────────────
 
-/// Set each top's velocity from its aim direction * move_speed.
+/// Set each top's velocity from its aim direction * move_speed. Play launch sound.
 fn launch_tops(
+    mut commands: Commands,
     mut query: Query<(&LaunchAim, &mut Velocity, &TopEffectiveStats), With<Top>>,
+    game_assets: Res<GameAssets>,
 ) {
+    let mut launched = false;
     for (aim, mut vel, stats) in &mut query {
         let dir = Vec2::new(aim.angle.cos(), aim.angle.sin());
         vel.0 = dir * stats.0.move_speed.0;
+        launched = true;
+    }
+    if launched {
+        commands.spawn((
+            AudioPlayer::<AudioSource>(game_assets.sfx.launch.clone()),
+            PlaybackSettings::DESPAWN,
+        ));
     }
 }
 
@@ -503,6 +609,50 @@ fn check_game_over(
         if spin.0 .0 <= 0.0 {
             next_state.set(GamePhase::GameOver);
             return;
+        }
+    }
+}
+
+// ── Audio system ────────────────────────────────────────────────────
+
+/// Play sound effects in response to game events (runs in CleanupSet).
+fn play_sound_effects(
+    mut commands: Commands,
+    mut game_events: MessageReader<GameEvent>,
+    mut collision_events: MessageReader<CollisionMessage>,
+    game_assets: Res<GameAssets>,
+) {
+    // Top-top collision
+    for _event in collision_events.read() {
+        commands.spawn((
+            AudioPlayer::<AudioSource>(game_assets.sfx.collision_top.clone()),
+            PlaybackSettings::DESPAWN,
+        ));
+    }
+
+    for event in game_events.read() {
+        match event {
+            GameEvent::DealDamage { kind, .. } => {
+                let handle = match kind {
+                    DamageKind::Wall => Some(&game_assets.sfx.collision_wall),
+                    DamageKind::Melee => Some(&game_assets.sfx.melee_hit),
+                    DamageKind::Projectile => Some(&game_assets.sfx.projectile_hit),
+                    _ => None,
+                };
+                if let Some(h) = handle {
+                    commands.spawn((
+                        AudioPlayer::<AudioSource>(h.clone()),
+                        PlaybackSettings::DESPAWN,
+                    ));
+                }
+            }
+            GameEvent::SpawnProjectile { .. } => {
+                commands.spawn((
+                    AudioPlayer::<AudioSource>(game_assets.sfx.ranged_fire.clone()),
+                    PlaybackSettings::DESPAWN,
+                ));
+            }
+            _ => {}
         }
     }
 }

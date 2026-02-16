@@ -6,7 +6,6 @@ mod storage;
 
 use bevy::prelude::*;
 
-use assets_map::AssetsMap;
 use config::tuning::Tuning;
 use plugins::{game_plugin::GamePlugin, menu_plugin::MenuPlugin, storage_plugin::StoragePlugin, ui_plugin::UiPlugin};
 
@@ -24,7 +23,6 @@ fn main() {
         }))
         .insert_resource(Time::<Fixed>::from_seconds(tuning.dt as f64))
         .insert_resource(tuning)
-        .insert_resource(AssetsMap::with_defaults())
         .add_plugins(GamePlugin)
         .add_plugins(MenuPlugin)
         .add_plugins(UiPlugin)
