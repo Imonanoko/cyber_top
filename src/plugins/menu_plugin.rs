@@ -247,12 +247,14 @@ fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>, re
                 width: Val::Percent(100.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
-                justify_content: JustifyContent::Center,
+                justify_content: JustifyContent::FlexStart,
                 align_items: AlignItems::Center,
                 row_gap: Val::Px(14.0),
-                padding: UiRect::all(Val::Px(30.0)),
+                padding: UiRect::new(Val::Px(30.0), Val::Px(30.0), Val::Px(40.0), Val::Px(30.0)),
+                overflow: Overflow::scroll_y(),
                 ..default()
             },
+            ScrollPosition::default(),
             BackgroundColor(COLOR_BG),
         ))
         .with_children(|root| {
@@ -455,8 +457,10 @@ fn spawn_map_picker(mut commands: Commands, selection: Res<GameSelection>) {
                 align_items: AlignItems::Center,
                 padding: UiRect::all(Val::Px(40.0)),
                 row_gap: Val::Px(20.0),
+                overflow: Overflow::scroll_y(),
                 ..default()
             },
+            ScrollPosition::default(),
             BackgroundColor(COLOR_BG),
         ))
         .with_children(|root| {
@@ -600,8 +604,10 @@ fn spawn_top_picker(
                 align_items: AlignItems::Center,
                 padding: UiRect::all(Val::Px(30.0)),
                 row_gap: Val::Px(16.0),
+                overflow: Overflow::scroll_y(),
                 ..default()
             },
+            ScrollPosition::default(),
             BackgroundColor(COLOR_BG),
         ))
         .with_children(|root| {

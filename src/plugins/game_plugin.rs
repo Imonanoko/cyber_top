@@ -281,7 +281,7 @@ fn spawn_weapon_visual(
             let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
             (r.barrel_len, r.barrel_thick)
         }
-        WeaponKind::Melee | WeaponKind::Hybrid => {
+        WeaponKind::Melee => {
             let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
             (m.blade_len, m.blade_thick)
         }

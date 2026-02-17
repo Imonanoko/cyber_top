@@ -1,5 +1,7 @@
 use bevy::ecs::hierarchy::ChildSpawnerCommands;
 use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
+use bevy::picking::hover::HoverMap;
 use bevy::prelude::*;
 use std::time::SystemTime;
 
@@ -84,6 +86,34 @@ impl Plugin for DesignPlugin {
         app.add_systems(OnEnter(GamePhase::PickDesignPart), spawn_pick_design_part);
         app.add_systems(OnExit(GamePhase::PickDesignPart), despawn::<ScreenRoot>);
         app.add_systems(Update, pick_design_part_system.run_if(in_state(GamePhase::PickDesignPart)));
+
+        // Global UI scroll (works for all scroll containers across all screens)
+        app.add_systems(Update, ui_scroll_system);
+    }
+}
+
+// ── UI Scroll System ────────────────────────────────────────────────
+
+const SCROLL_LINE_HEIGHT: f32 = 21.0;
+
+fn ui_scroll_system(
+    mut mouse_wheel: MessageReader<MouseWheel>,
+    hover_map: Res<HoverMap>,
+    mut scroll_q: Query<&mut ScrollPosition>,
+) {
+    for ev in mouse_wheel.read() {
+        let mut dy = -ev.y;
+        if ev.unit == MouseScrollUnit::Line {
+            dy *= SCROLL_LINE_HEIGHT;
+        }
+
+        for pointer_map in hover_map.values() {
+            for &entity in pointer_map.keys() {
+                if let Ok(mut scroll) = scroll_q.get_mut(entity) {
+                    scroll.y = (scroll.y + dy).max(0.0);
+                }
+            }
+        }
     }
 }
 
@@ -422,12 +452,14 @@ fn spawn_design_hub(mut commands: Commands, mut state: ResMut<DesignState>) {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
-            justify_content: JustifyContent::Center,
+            justify_content: JustifyContent::FlexStart,
             align_items: AlignItems::Center,
             row_gap: Val::Px(16.0),
-            padding: UiRect::all(Val::Px(30.0)),
+            padding: UiRect::new(Val::Px(30.0), Val::Px(30.0), Val::Px(40.0), Val::Px(30.0)),
+            overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
         spawn_title(root, "Design Workshop");
@@ -475,16 +507,36 @@ fn design_hub_system(
 ) {
     for (interaction, button, mut bg) in &mut q {
         if *interaction == Interaction::Pressed {
-            state.editing_part_id = None;
             state.return_to_manage = false;
             match button {
-                HubButton::NewTop => next_state.set(GamePhase::EditTop),
-                HubButton::NewWeapon => next_state.set(GamePhase::EditWeapon),
-                HubButton::NewShaft => next_state.set(GamePhase::EditShaft),
-                HubButton::NewChassis => next_state.set(GamePhase::EditChassis),
-                HubButton::NewScrew => next_state.set(GamePhase::EditScrew),
-                HubButton::ManageParts => next_state.set(GamePhase::ManageParts),
-                HubButton::Back => next_state.set(GamePhase::MainMenu),
+                HubButton::NewTop => {
+                    state.editing_part_id = Some(gen_custom_id());
+                    next_state.set(GamePhase::EditTop);
+                }
+                HubButton::NewWeapon => {
+                    state.editing_part_id = Some(gen_custom_id());
+                    next_state.set(GamePhase::EditWeapon);
+                }
+                HubButton::NewShaft => {
+                    state.editing_part_id = Some(gen_custom_id());
+                    next_state.set(GamePhase::EditShaft);
+                }
+                HubButton::NewChassis => {
+                    state.editing_part_id = Some(gen_custom_id());
+                    next_state.set(GamePhase::EditChassis);
+                }
+                HubButton::NewScrew => {
+                    state.editing_part_id = Some(gen_custom_id());
+                    next_state.set(GamePhase::EditScrew);
+                }
+                HubButton::ManageParts => {
+                    state.editing_part_id = None;
+                    next_state.set(GamePhase::ManageParts);
+                }
+                HubButton::Back => {
+                    state.editing_part_id = None;
+                    next_state.set(GamePhase::MainMenu);
+                }
             }
         }
         hover_system(interaction, &mut bg);
@@ -515,55 +567,81 @@ fn spawn_manage_parts(
     let edit_icon: Handle<Image> = asset_server.load("ui/edit.png");
     let delete_icon: Handle<Image> = asset_server.load("ui/delete.png");
 
+    // Outer container: fixed full-screen, clips vertically
     commands.spawn((
         ScreenRoot,
         Node {
             width: Val::Percent(100.0),
             height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(20.0)),
-            row_gap: Val::Px(8.0),
-            overflow: Overflow::scroll_y(),
             ..default()
         },
         BackgroundColor(COLOR_BG),
-    )).with_children(|root| {
-        spawn_title(root, "My Parts & Builds");
+    )).with_children(|outer| {
+        // Fixed top bar: title
+        outer.spawn(Node {
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            padding: UiRect::new(Val::Px(20.0), Val::Px(20.0), Val::Px(16.0), Val::Px(8.0)),
+            ..default()
+        }).with_children(|bar| {
+            spawn_title(bar, "My Parts & Builds");
+        });
 
-        // ── Tops ──
-        spawn_section_with_tops(root, &registry.tops, &asset_server, &edit_icon, &delete_icon);
+        // Scrollable middle area
+        outer.spawn((
+            Node {
+                width: Val::Percent(100.0),
+                flex_grow: 1.0,
+                flex_shrink: 1.0,
+                flex_basis: Val::Px(0.0),
+                min_height: Val::Px(0.0),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                padding: UiRect::horizontal(Val::Px(20.0)),
+                row_gap: Val::Px(8.0),
+                overflow: Overflow::scroll_y(),
+                ..default()
+            },
+            ScrollPosition::default(),
+        )).with_children(|root| {
+            // ── Tops ──
+            spawn_section_with_tops(root, &registry.tops, &asset_server, &edit_icon, &delete_icon);
 
-        // ── Weapons ──
-        spawn_section_with_parts(root, "Weapons", &registry.weapons, PartSlot::WeaponWheel, &asset_server, &edit_icon, &delete_icon);
+            // ── Weapons ──
+            spawn_section_with_parts(root, "Weapons", &registry.weapons, PartSlot::WeaponWheel, &asset_server, &edit_icon, &delete_icon);
 
-        // ── Shafts ──
-        spawn_section_with_shafts(root, &registry.shafts, &asset_server, &edit_icon, &delete_icon);
+            // ── Shafts ──
+            spawn_section_with_shafts(root, &registry.shafts, &asset_server, &edit_icon, &delete_icon);
 
-        // ── Chassis ──
-        spawn_section_with_chassis(root, &registry.chassis, &asset_server, &edit_icon, &delete_icon);
+            // ── Chassis ──
+            spawn_section_with_chassis(root, &registry.chassis, &asset_server, &edit_icon, &delete_icon);
 
-        // ── Screws ──
-        spawn_section_with_screws(root, &registry.screws, &asset_server, &edit_icon, &delete_icon);
+            // ── Screws ──
+            spawn_section_with_screws(root, &registry.screws, &asset_server, &edit_icon, &delete_icon);
 
-        // ── Builds section ──
-        root.spawn((
-            Text::new("Builds"),
-            TextFont { font_size: 18.0, ..default() },
-            TextColor(COLOR_ACCENT),
-            Node { margin: UiRect::top(Val::Px(12.0)), ..default() },
-        ));
-        root.spawn((
-            Text::new("(Use 'New Build' to assemble parts)"),
-            TextFont { font_size: 13.0, ..default() },
-            TextColor(COLOR_TEXT_DIM),
-        ));
+            // ── Builds section ──
+            root.spawn((
+                Text::new("Builds"),
+                TextFont { font_size: 18.0, ..default() },
+                TextColor(COLOR_ACCENT),
+                Node { margin: UiRect::top(Val::Px(12.0)), ..default() },
+            ));
+            root.spawn((
+                Text::new("(Use 'New Build' to assemble parts)"),
+                TextFont { font_size: 13.0, ..default() },
+                TextColor(COLOR_TEXT_DIM),
+            ));
+            // Bottom padding so content doesn't sit against the button bar
+            root.spawn(Node { height: Val::Px(8.0), ..default() });
+        });
 
-        // Action buttons
-        root.spawn(Node {
+        // Fixed bottom bar: action buttons
+        outer.spawn(Node {
             flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::Center,
             column_gap: Val::Px(16.0),
-            margin: UiRect::top(Val::Px(12.0)),
+            padding: UiRect::all(Val::Px(12.0)),
             ..default()
         }).with_children(|row| {
             spawn_button(row, "New Build", ManageButton::NewBuild);
@@ -968,9 +1046,10 @@ fn spawn_top_editor(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.editing_part_id.is_some() { "Edit Top" } else { "New Top" };
+        let title = if state.return_to_manage { "Edit Top" } else { "New Top" };
         spawn_title(root, title);
 
         let img = state.editing_part_id.as_ref().map(|id| asset_server.load(format!("tops/{}.png", id)));
@@ -1073,9 +1152,10 @@ fn spawn_shaft_editor(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.editing_part_id.is_some() { "Edit Shaft" } else { "New Shaft" };
+        let title = if state.return_to_manage { "Edit Shaft" } else { "New Shaft" };
         spawn_title(root, title);
 
         // Image preview
@@ -1167,9 +1247,10 @@ fn spawn_chassis_editor(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.editing_part_id.is_some() { "Edit Chassis" } else { "New Chassis" };
+        let title = if state.return_to_manage { "Edit Chassis" } else { "New Chassis" };
         spawn_title(root, title);
 
         let img = state.editing_part_id.as_ref().map(|id| asset_server.load(format!("chassis/{}.png", id)));
@@ -1268,9 +1349,10 @@ fn spawn_screw_editor(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.editing_part_id.is_some() { "Edit Screw" } else { "New Screw" };
+        let title = if state.return_to_manage { "Edit Screw" } else { "New Screw" };
         spawn_title(root, title);
 
         let img = state.editing_part_id.as_ref().map(|id| asset_server.load(format!("screws/{}.png", id)));
@@ -1367,15 +1449,13 @@ fn kind_display_text(kind: WeaponKind) -> &'static str {
     match kind {
         WeaponKind::Melee => "Melee",
         WeaponKind::Ranged => "Ranged",
-        WeaponKind::Hybrid => "Hybrid",
     }
 }
 
 fn next_kind(kind: WeaponKind) -> WeaponKind {
     match kind {
         WeaponKind::Melee => WeaponKind::Ranged,
-        WeaponKind::Ranged => WeaponKind::Hybrid,
-        WeaponKind::Hybrid => WeaponKind::Melee,
+        WeaponKind::Ranged => WeaponKind::Melee,
     }
 }
 
@@ -1402,9 +1482,6 @@ fn spawn_weapon_editor(
     let m = w.melee.unwrap_or_default();
     let r = w.ranged.unwrap_or_default();
 
-    let show_melee = kind == WeaponKind::Melee || kind == WeaponKind::Hybrid;
-    let show_ranged = kind == WeaponKind::Ranged || kind == WeaponKind::Hybrid;
-
     commands.spawn((
         ScreenRoot,
         Node {
@@ -1417,9 +1494,10 @@ fn spawn_weapon_editor(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.editing_part_id.is_some() { "Edit Weapon" } else { "New Weapon" };
+        let title = if state.return_to_manage { "Edit Weapon" } else { "New Weapon" };
         spawn_title(root, title);
 
         let img = state.editing_part_id.as_ref().map(|id| asset_server.load(format!("weapons/{}.png", id)));
@@ -1472,11 +1550,13 @@ fn spawn_weapon_editor(
             });
         });
 
-        // Melee section (visibility-toggled)
+        let show_melee = kind == WeaponKind::Melee;
+
+        // Melee section (shown when kind == Melee)
         root.spawn((
             MeleeSection,
-            if show_melee { Visibility::Inherited } else { Visibility::Hidden },
             Node {
+                display: if show_melee { Display::Flex } else { Display::None },
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 row_gap: Val::Px(8.0),
@@ -1497,11 +1577,11 @@ fn spawn_weapon_editor(
             spawn_field_row(section, "Spin Rate Mul", "Visual spin rate multiplier", "m_spin_rate", &format!("{}", m.spin_rate_multiplier));
         });
 
-        // Ranged section (visibility-toggled)
+        // Ranged section (shown when kind == Ranged)
         root.spawn((
             RangedSection,
-            if show_ranged { Visibility::Inherited } else { Visibility::Hidden },
             Node {
+                display: if !show_melee { Display::Flex } else { Display::None },
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 row_gap: Val::Px(8.0),
@@ -1543,8 +1623,8 @@ fn weapon_editor_system(
     mut q: Query<(&Interaction, &WeaponEditorButton, &mut BackgroundColor), (Changed<Interaction>, Without<KindSelector>)>,
     mut kind_q: Query<(&Interaction, &mut KindSelector, &mut BackgroundColor, &Children), Without<WeaponEditorButton>>,
     mut kind_labels: Query<&mut Text, With<KindSelectorLabel>>,
-    mut melee_sections: Query<&mut Visibility, (With<MeleeSection>, Without<RangedSection>)>,
-    mut ranged_sections: Query<&mut Visibility, (With<RangedSection>, Without<MeleeSection>)>,
+    mut melee_sections: Query<&mut Node, (With<MeleeSection>, Without<RangedSection>)>,
+    mut ranged_sections: Query<&mut Node, (With<RangedSection>, Without<MeleeSection>)>,
     inputs: Query<&TextInput>,
     mut next_state: ResMut<NextState<GamePhase>>,
     state: ResMut<DesignState>,
@@ -1562,13 +1642,12 @@ fn weapon_editor_system(
                     **text = kind_display_text(selector.current).into();
                 }
             }
-            let show_melee = selector.current == WeaponKind::Melee || selector.current == WeaponKind::Hybrid;
-            let show_ranged = selector.current == WeaponKind::Ranged || selector.current == WeaponKind::Hybrid;
-            for mut vis in &mut melee_sections {
-                *vis = if show_melee { Visibility::Inherited } else { Visibility::Hidden };
+            let show_melee = selector.current == WeaponKind::Melee;
+            for mut node in &mut melee_sections {
+                node.display = if show_melee { Display::Flex } else { Display::None };
             }
-            for mut vis in &mut ranged_sections {
-                *vis = if show_ranged { Visibility::Inherited } else { Visibility::Hidden };
+            for mut node in &mut ranged_sections {
+                node.display = if !show_melee { Display::Flex } else { Display::None };
             }
         }
         if *interaction != Interaction::Pressed {
@@ -1591,8 +1670,8 @@ fn weapon_editor_system(
                         .map(|(_, s, _, _)| s.current)
                         .unwrap_or(WeaponKind::Melee);
 
-                    let is_melee = kind == WeaponKind::Melee || kind == WeaponKind::Hybrid;
-                    let is_ranged = kind == WeaponKind::Ranged || kind == WeaponKind::Hybrid;
+                    let is_melee = kind == WeaponKind::Melee;
+                    let is_ranged = kind == WeaponKind::Ranged;
 
                     let melee = if is_melee {
                         Some(MeleeSpec {
@@ -1726,6 +1805,7 @@ fn spawn_assemble_build(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
         spawn_title(root, "Assemble Build");
@@ -1898,6 +1978,7 @@ fn spawn_pick_design_part(
             overflow: Overflow::scroll_y(),
             ..default()
         },
+        ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
         let title = match slot {
