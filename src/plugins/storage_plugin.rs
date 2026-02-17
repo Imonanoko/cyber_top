@@ -3,6 +3,10 @@ use bevy::prelude::*;
 use crate::config::tuning::Tuning;
 use crate::storage::sqlite_repo::SqliteRepo;
 
+/// Persisted tokio runtime for sync DB calls outside startup.
+#[derive(Resource)]
+pub struct TokioRuntime(pub tokio::runtime::Runtime);
+
 pub struct StoragePlugin;
 
 impl Plugin for StoragePlugin {
@@ -15,7 +19,6 @@ fn init_storage(world: &mut World) {
     let db_path = Tuning::data_dir().join("cyber_top.db");
     info!("Initializing SQLite at {:?}", db_path);
 
-    // Use tokio runtime to initialize async SQLite
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     match rt.block_on(SqliteRepo::new(&db_path)) {
         Ok(repo) => {
@@ -24,7 +27,8 @@ fn init_storage(world: &mut World) {
         }
         Err(e) => {
             error!("Failed to initialize SQLite: {e}");
-            // Continue without DB — game can still run in-memory
         }
     }
+    // Keep runtime alive for sync DB calls in design screens
+    world.insert_resource(TokioRuntime(rt));
 }

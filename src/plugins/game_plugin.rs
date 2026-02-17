@@ -159,6 +159,8 @@ impl Plugin for GamePlugin {
 fn setup_camera(
     mut commands: Commands,
     tuning: Res<Tuning>,
+    repo: Option<Res<crate::storage::sqlite_repo::SqliteRepo>>,
+    tokio_rt: Option<Res<crate::plugins::storage_plugin::TokioRuntime>>,
 ) {
     let ppu = tuning.pixels_per_unit.max(1.0);
 
@@ -171,8 +173,13 @@ fn setup_camera(
         }),
     ));
 
-    // Part registry (persists forever)
-    commands.insert_resource(PartRegistry::with_defaults());
+    // Part registry: hardcoded defaults + custom parts/builds from DB
+    let mut registry = PartRegistry::with_defaults();
+    if let (Some(repo), Some(rt)) = (repo, tokio_rt) {
+        registry.merge_custom_parts(&repo, &rt.0);
+        registry.merge_custom_builds(&repo, &rt.0);
+    }
+    commands.insert_resource(registry);
 }
 
 // ── Startup: load all game assets ────────────────────────────────────
@@ -210,7 +217,6 @@ fn load_game_assets(
 
     // Fallback colors (used when sprite files are missing)
     fallback_colors.insert("default_top".into(), Color::srgb(0.2, 0.6, 1.0));
-    fallback_colors.insert("small_top".into(), Color::srgb(1.0, 0.2, 0.2));
     fallback_colors.insert("basic_blade".into(), Color::srgb(0.9, 0.9, 1.0));
     fallback_colors.insert("basic_blaster".into(), Color::srgb(0.9, 0.9, 1.0));
 
@@ -336,16 +342,19 @@ fn setup_arena(
     });
 
     // ── Player 1 ─────────────────────────────────────────────────────
+    let p1_ref = registry.builds.get(&selection.p1_build_id)
+        .expect("P1 build not found in registry");
     let p1_build = registry
         .resolve_build(
-            "p1_build",
-            &selection.p1_top_id,
-            &selection.p1_weapon_id,
-            "standard_shaft",
-            "standard_chassis",
-            "standard_screw",
+            &p1_ref.id,
+            &p1_ref.top_id,
+            &p1_ref.weapon_id,
+            &p1_ref.shaft_id,
+            &p1_ref.chassis_id,
+            &p1_ref.screw_id,
         )
         .expect("P1 build parts not found in registry");
+    let p1_top_id = p1_ref.top_id.clone();
     let p1_mods = p1_build.combined_modifiers();
     let p1_effective = p1_mods.compute_effective(&p1_build.top, &tuning);
     let p1_radius = p1_effective.radius.0;
@@ -364,7 +373,7 @@ fn setup_arena(
         StatusEffects::default(),
         (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
     ));
-    insert_top_visual(&mut p1_entity, &selection.p1_top_id, p1_radius, &game_assets, &mut meshes, &mut materials);
+    insert_top_visual(&mut p1_entity, &p1_top_id, p1_radius, &game_assets, &mut meshes, &mut materials);
     p1_entity.with_children(|parent| {
         spawn_weapon_visual(parent, &p1_build.weapon, p1_radius, &game_assets, &mut meshes, &mut materials);
     });
@@ -382,16 +391,19 @@ fn setup_arena(
     ));
 
     // ── Player 2 / AI ────────────────────────────────────────────────
+    let p2_ref = registry.builds.get(&selection.p2_build_id)
+        .expect("P2 build not found in registry");
     let p2_build = registry
         .resolve_build(
-            "p2_build",
-            &selection.p2_top_id,
-            &selection.p2_weapon_id,
-            "standard_shaft",
-            "standard_chassis",
-            "standard_screw",
+            &p2_ref.id,
+            &p2_ref.top_id,
+            &p2_ref.weapon_id,
+            &p2_ref.shaft_id,
+            &p2_ref.chassis_id,
+            &p2_ref.screw_id,
         )
         .expect("P2 build parts not found in registry");
+    let p2_top_id = p2_ref.top_id.clone();
     let p2_mods = p2_build.combined_modifiers();
     let p2_effective = p2_mods.compute_effective(&p2_build.top, &tuning);
     let p2_radius = p2_effective.radius.0;
@@ -415,7 +427,7 @@ fn setup_arena(
         GameMode::PvP => { p2_entity.insert(Player2Controlled); }
     }
 
-    insert_top_visual(&mut p2_entity, &selection.p2_top_id, p2_radius, &game_assets, &mut meshes, &mut materials);
+    insert_top_visual(&mut p2_entity, &p2_top_id, p2_radius, &game_assets, &mut meshes, &mut materials);
     p2_entity.with_children(|parent| {
         spawn_weapon_visual(parent, &p2_build.weapon, p2_radius, &game_assets, &mut meshes, &mut materials);
     });

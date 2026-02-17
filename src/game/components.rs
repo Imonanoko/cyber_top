@@ -33,6 +33,16 @@ pub enum GamePhase {
     Aiming,
     Battle,
     GameOver,
+    // ── Design flow ──
+    DesignHub,
+    EditTop,
+    EditWeapon,
+    EditShaft,
+    EditChassis,
+    EditScrew,
+    ManageParts,
+    AssembleBuild,
+    PickDesignPart,
 }
 
 /// Marker: tag all game-session entities for cleanup when returning to main menu.

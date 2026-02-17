@@ -17,10 +17,8 @@ pub enum GameMode {
 pub struct GameSelection {
     pub mode: GameMode,
     pub map_id: String,
-    pub p1_top_id: String,
-    pub p1_weapon_id: String,
-    pub p2_top_id: String,
-    pub p2_weapon_id: String,
+    pub p1_build_id: String,
+    pub p2_build_id: String,
 }
 
 impl Default for GameSelection {
@@ -28,10 +26,8 @@ impl Default for GameSelection {
         Self {
             mode: GameMode::PvAI,
             map_id: "default_arena".into(),
-            p1_top_id: "default_top".into(),
-            p1_weapon_id: "basic_blaster".into(),
-            p2_top_id: "default_top".into(),
-            p2_weapon_id: "basic_blade".into(),
+            p1_build_id: "default_blaster".into(),
+            p2_build_id: "default_blade".into(),
         }
     }
 }
@@ -84,20 +80,17 @@ struct P2AiLabel;
 #[derive(Component)]
 struct P2ChoosePanel;
 
-/// Label showing current map/top name on the hub.
+/// Label showing current map/build name on the hub.
 #[derive(Component)]
 struct CurrentMapLabel;
 #[derive(Component)]
-struct CurrentP1TopLabel;
-#[derive(Component)]
-struct CurrentP1WeaponLabel;
+struct CurrentP1BuildLabel;
 
 // Picker screen buttons
 #[derive(Component)]
 enum PickerButton {
     SelectMap(String),
-    SelectTop(String),
-    SelectWeapon(String),
+    SelectBuild(String),
     Confirm,
     Back,
 }
@@ -206,7 +199,7 @@ fn spawn_main_menu(mut commands: Commands) {
             ));
             spawn_btn(parent, "Start Game", MenuButton::StartGame, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
             spawn_btn(parent, "Design Map (Coming Soon)", MenuButton::DesignMap, COLOR_BTN_DISABLED, COLOR_TEXT_DIM, 360.0, 56.0);
-            spawn_btn(parent, "Design Top (Coming Soon)", MenuButton::DesignTop, COLOR_BTN_DISABLED, COLOR_TEXT_DIM, 360.0, 56.0);
+            spawn_btn(parent, "Design Top", MenuButton::DesignTop, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
         });
 }
 
@@ -224,7 +217,15 @@ fn menu_button_system(
                 Interaction::Hovered => *bg = BackgroundColor(COLOR_BTN_HOVER),
                 Interaction::None => *bg = BackgroundColor(COLOR_BTN),
             },
-            MenuButton::DesignMap | MenuButton::DesignTop => {
+            MenuButton::DesignTop => match *interaction {
+                Interaction::Pressed => {
+                    *bg = BackgroundColor(COLOR_BTN_PRESS);
+                    next_state.set(GamePhase::DesignHub);
+                }
+                Interaction::Hovered => *bg = BackgroundColor(COLOR_BTN_HOVER),
+                Interaction::None => *bg = BackgroundColor(COLOR_BTN),
+            },
+            MenuButton::DesignMap => {
                 *bg = BackgroundColor(COLOR_BTN_DISABLED);
             }
         }
@@ -235,7 +236,10 @@ fn menu_button_system(
 // SELECTION HUB
 // ═══════════════════════════════════════════════════════════════════════
 
-fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>) {
+fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>, registry: Res<PartRegistry>) {
+    let p1_name = build_display_name(&selection.p1_build_id, &registry);
+    let p2_name = build_display_name(&selection.p2_build_id, &registry);
+
     commands
         .spawn((
             SelectionRoot,
@@ -292,7 +296,7 @@ fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>) {
             });
 
             // ── Player 1 ──
-            section_label(root, "Player 1");
+            section_label(root, "Player 1 Build");
             root.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 column_gap: Val::Px(12.0),
@@ -300,8 +304,8 @@ fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>) {
                 ..default()
             }).with_children(|row| {
                 row.spawn((
-                    CurrentP1TopLabel,
-                    Text::new(format!("{} + {}", top_display_name(&selection.p1_top_id), weapon_display_name(&selection.p1_weapon_id))),
+                    CurrentP1BuildLabel,
+                    Text::new(p1_name),
                     TextFont { font_size: 20.0, ..default() },
                     TextColor(COLOR_TEXT),
                     Node { margin: UiRect::right(Val::Px(12.0)), ..default() },
@@ -341,9 +345,9 @@ fn spawn_selection_hub(mut commands: Commands, selection: Res<GameSelection>) {
                         ..default()
                     },
                 )).with_children(|row| {
-                    section_label(row, "Player 2");
+                    section_label(row, "Player 2 Build");
                     row.spawn((
-                        Text::new(format!("{} + {}", top_display_name(&selection.p2_top_id), weapon_display_name(&selection.p2_weapon_id))),
+                        Text::new(p2_name),
                         TextFont { font_size: 20.0, ..default() },
                         TextColor(COLOR_TEXT),
                         Node { margin: UiRect::right(Val::Px(12.0)), ..default() },
@@ -370,7 +374,9 @@ fn selection_button_system(
     mut selection: ResMut<GameSelection>,
     mut picking: ResMut<PickingFor>,
     mut next_state: ResMut<NextState<GamePhase>>,
+    registry: Res<PartRegistry>,
 ) {
+    let build_ids: Vec<String> = registry.builds.keys().cloned().collect();
     for (interaction, button, _bg) in &mut q {
         if *interaction != Interaction::Pressed {
             continue;
@@ -379,7 +385,7 @@ fn selection_button_system(
             SelectionButton::ModePvP => selection.mode = GameMode::PvP,
             SelectionButton::ModePvAI => {
                 selection.mode = GameMode::PvAI;
-                randomize_ai_selection(&mut selection);
+                randomize_ai_selection(&mut selection, &build_ids);
             }
             SelectionButton::ChooseMap => {
                 next_state.set(GamePhase::PickMap);
@@ -394,7 +400,7 @@ fn selection_button_system(
             }
             SelectionButton::StartBattle => {
                 if selection.mode == GameMode::PvAI {
-                    randomize_ai_selection(&mut selection);
+                    randomize_ai_selection(&mut selection, &build_ids);
                 }
                 next_state.set(GamePhase::Aiming);
             }
@@ -566,7 +572,7 @@ fn map_picker_system(
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-// TOP + WEAPON PICKER
+// BUILD PICKER
 // ═══════════════════════════════════════════════════════════════════════
 
 fn spawn_top_picker(
@@ -577,10 +583,10 @@ fn spawn_top_picker(
     game_assets: Option<Res<GameAssets>>,
 ) {
     let player = picking.0;
-    let (cur_top, cur_weapon) = if player == 1 {
-        (&selection.p1_top_id, &selection.p1_weapon_id)
+    let cur_build = if player == 1 {
+        &selection.p1_build_id
     } else {
-        (&selection.p2_top_id, &selection.p2_weapon_id)
+        &selection.p2_build_id
     };
 
     commands
@@ -600,47 +606,31 @@ fn spawn_top_picker(
         ))
         .with_children(|root| {
             root.spawn((
-                Text::new(format!("Player {} - Select Top & Weapon", player)),
+                Text::new(format!("Player {} - Select Build", player)),
                 TextFont { font_size: 36.0, ..default() },
                 TextColor(COLOR_ACCENT),
             ));
 
-            // ── Top cards ──
-            section_label(root, "Top");
+            // ── Build cards ──
             root.spawn(Node {
                 flex_direction: FlexDirection::Row,
                 flex_wrap: FlexWrap::Wrap,
                 justify_content: JustifyContent::Center,
                 column_gap: Val::Px(16.0),
                 row_gap: Val::Px(16.0),
+                margin: UiRect::top(Val::Px(16.0)),
                 ..default()
             }).with_children(|grid| {
-                // Sort keys for consistent order
-                let mut top_ids: Vec<_> = registry.tops.keys().collect();
-                top_ids.sort();
-                for id in top_ids {
-                    let stats = &registry.tops[id];
-                    let sprite = game_assets.as_ref().and_then(|a| a.top_sprites.get(id.as_str()).cloned());
-                    spawn_top_card(grid, id, stats, *cur_top == *id, sprite);
-                }
-            });
-
-            // ── Weapon cards ──
-            section_label(root, "Weapon");
-            root.spawn(Node {
-                flex_direction: FlexDirection::Row,
-                flex_wrap: FlexWrap::Wrap,
-                justify_content: JustifyContent::Center,
-                column_gap: Val::Px(16.0),
-                row_gap: Val::Px(16.0),
-                ..default()
-            }).with_children(|grid| {
-                let mut weapon_ids: Vec<_> = registry.weapons.keys().collect();
-                weapon_ids.sort();
-                for id in weapon_ids {
-                    let weapon = &registry.weapons[id];
-                    let sprite = game_assets.as_ref().and_then(|a| a.weapon_sprites.get(id.as_str()).cloned());
-                    spawn_weapon_card(grid, id, weapon, *cur_weapon == *id, sprite);
+                let mut build_ids: Vec<_> = registry.builds.keys().collect();
+                build_ids.sort();
+                for id in build_ids {
+                    let build_ref = &registry.builds[id];
+                    let top_sprite = game_assets.as_ref()
+                        .and_then(|a| a.top_sprites.get(build_ref.top_id.as_str()).cloned());
+                    let weapon_name = registry.weapons.get(&build_ref.weapon_id)
+                        .map(|w| format!("{:?}", w.kind))
+                        .unwrap_or_default();
+                    spawn_build_card(grid, id, &build_ref.name, &weapon_name, *cur_build == *id, top_sprite);
                 }
             });
 
@@ -657,22 +647,22 @@ fn spawn_top_picker(
         });
 }
 
-fn spawn_top_card(
+fn spawn_build_card(
     parent: &mut ChildSpawnerCommands,
     id: &str,
-    stats: &crate::game::stats::base::BaseStats,
+    name: &str,
+    weapon_kind: &str,
     selected: bool,
-    sprite: Option<Handle<Image>>,
+    top_sprite: Option<Handle<Image>>,
 ) {
     let card_bg = if selected { COLOR_CARD_SELECTED } else { COLOR_CARD };
-    let radius_px = (stats.radius.0 * 80.0).clamp(20.0, 80.0);
 
     parent.spawn((
-        PickerButton::SelectTop(id.into()),
+        PickerButton::SelectBuild(id.into()),
         PickerHighlight,
         Button,
         Node {
-            width: Val::Px(180.0),
+            width: Val::Px(200.0),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             padding: UiRect::all(Val::Px(14.0)),
@@ -682,137 +672,40 @@ fn spawn_top_card(
         },
         BackgroundColor(card_bg),
     )).with_children(|card| {
-        if let Some(handle) = sprite {
-            // Sprite preview
+        // Top preview
+        if let Some(handle) = top_sprite {
             card.spawn((
                 PreviewCircle,
                 ImageNode { image: handle, ..default() },
                 Node {
-                    width: Val::Px(radius_px * 2.0),
-                    height: Val::Px(radius_px * 2.0),
+                    width: Val::Px(80.0),
+                    height: Val::Px(80.0),
                     ..default()
                 },
             ));
         } else {
-            // Fallback: colored circle
             card.spawn((
                 PreviewCircle,
                 Node {
-                    width: Val::Px(radius_px * 2.0),
-                    height: Val::Px(radius_px * 2.0),
-                    border_radius: BorderRadius::all(Val::Px(radius_px)),
+                    width: Val::Px(80.0),
+                    height: Val::Px(80.0),
+                    border_radius: BorderRadius::all(Val::Px(40.0)),
                     ..default()
                 },
                 BackgroundColor(Color::srgb(0.2, 0.6, 1.0)),
             ));
         }
-        // Name
+        // Build name
         card.spawn((
-            Text::new(&stats.name),
+            Text::new(name),
             TextFont { font_size: 18.0, ..default() },
             TextColor(COLOR_TEXT),
         ));
-        // Stats
+        // Weapon kind
         card.spawn((
-            Text::new(format!("HP: {:.0}  R: {:.2}  Spd: {:.0}",
-                stats.spin_hp_max.0, stats.radius.0, stats.move_speed.0)),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(COLOR_TEXT_DIM),
-        ));
-    });
-}
-
-fn spawn_weapon_card(
-    parent: &mut ChildSpawnerCommands,
-    id: &str,
-    weapon: &crate::game::parts::weapon_wheel::WeaponWheelSpec,
-    selected: bool,
-    sprite: Option<Handle<Image>>,
-) {
-    let card_bg = if selected { COLOR_CARD_SELECTED } else { COLOR_CARD };
-    let kind_str = format!("{:?}", weapon.kind);
-
-    // Weapon visual preview dimensions
-    let (preview_w, preview_h, color) = match weapon.kind {
-        crate::game::stats::types::WeaponKind::Melee => {
-            let m = weapon.melee.as_ref().unwrap();
-            (m.blade_len * 30.0, m.blade_thick * 30.0, Color::srgb(0.9, 0.4, 0.2))
-        }
-        crate::game::stats::types::WeaponKind::Ranged => {
-            let r = weapon.ranged.as_ref().unwrap();
-            (r.barrel_len * 30.0, r.barrel_thick * 30.0, Color::srgb(0.2, 0.9, 0.4))
-        }
-        _ => (40.0, 10.0, Color::srgb(0.8, 0.8, 0.2)),
-    };
-
-    let damage_str = match weapon.kind {
-        crate::game::stats::types::WeaponKind::Melee => {
-            let m = weapon.melee.as_ref().unwrap();
-            format!("DMG: {:.1}  CD: {:.1}s", m.base_damage, m.hit_cooldown)
-        }
-        crate::game::stats::types::WeaponKind::Ranged => {
-            let r = weapon.ranged.as_ref().unwrap();
-            format!("DMG: {:.1}  RoF: {:.1}/s", r.projectile_damage, r.fire_rate)
-        }
-        _ => String::new(),
-    };
-
-    parent.spawn((
-        PickerButton::SelectWeapon(id.into()),
-        PickerHighlight,
-        Button,
-        Node {
-            width: Val::Px(180.0),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            padding: UiRect::all(Val::Px(14.0)),
-            row_gap: Val::Px(8.0),
-            border_radius: BorderRadius::all(Val::Px(10.0)),
-            ..default()
-        },
-        BackgroundColor(card_bg),
-    )).with_children(|card| {
-        if let Some(handle) = sprite {
-            // Sprite preview
-            card.spawn((
-                ImageNode { image: handle, ..default() },
-                Node {
-                    width: Val::Px(preview_w.max(30.0)),
-                    height: Val::Px(preview_h.max(8.0)),
-                    margin: UiRect::vertical(Val::Px(10.0)),
-                    ..default()
-                },
-            ));
-        } else {
-            // Fallback: colored rectangle
-            card.spawn((
-                Node {
-                    width: Val::Px(preview_w.max(30.0)),
-                    height: Val::Px(preview_h.max(8.0)),
-                    border_radius: BorderRadius::all(Val::Px(3.0)),
-                    margin: UiRect::vertical(Val::Px(10.0)),
-                    ..default()
-                },
-                BackgroundColor(color),
-            ));
-        }
-        // Name
-        card.spawn((
-            Text::new(&weapon.name),
-            TextFont { font_size: 18.0, ..default() },
-            TextColor(COLOR_TEXT),
-        ));
-        // Type
-        card.spawn((
-            Text::new(kind_str),
+            Text::new(weapon_kind),
             TextFont { font_size: 13.0, ..default() },
             TextColor(COLOR_ACCENT),
-        ));
-        // Stats
-        card.spawn((
-            Text::new(damage_str),
-            TextFont { font_size: 12.0, ..default() },
-            TextColor(COLOR_TEXT_DIM),
         ));
     });
 }
@@ -829,18 +722,11 @@ fn top_picker_system(
             continue;
         }
         match button {
-            PickerButton::SelectTop(id) => {
+            PickerButton::SelectBuild(id) => {
                 if player == 1 {
-                    selection.p1_top_id = id.clone();
+                    selection.p1_build_id = id.clone();
                 } else {
-                    selection.p2_top_id = id.clone();
-                }
-            }
-            PickerButton::SelectWeapon(id) => {
-                if player == 1 {
-                    selection.p1_weapon_id = id.clone();
-                } else {
-                    selection.p2_weapon_id = id.clone();
+                    selection.p2_build_id = id.clone();
                 }
             }
             PickerButton::Confirm | PickerButton::Back => {
@@ -856,16 +742,15 @@ fn update_top_picker_visuals(
     picking: Res<PickingFor>,
     mut q: Query<(&PickerButton, &Interaction, &mut BackgroundColor), With<PickerHighlight>>,
 ) {
-    let (cur_top, cur_weapon) = if picking.0 == 1 {
-        (&selection.p1_top_id, &selection.p1_weapon_id)
+    let cur_build = if picking.0 == 1 {
+        &selection.p1_build_id
     } else {
-        (&selection.p2_top_id, &selection.p2_weapon_id)
+        &selection.p2_build_id
     };
 
     for (button, interaction, mut bg) in &mut q {
         let is_selected = match button {
-            PickerButton::SelectTop(id) => *cur_top == *id,
-            PickerButton::SelectWeapon(id) => *cur_weapon == *id,
+            PickerButton::SelectBuild(id) => *cur_build == *id,
             _ => false,
         };
         *bg = BackgroundColor(match (is_selected, interaction) {
@@ -945,16 +830,16 @@ fn game_over_input(
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════
 
-fn randomize_ai_selection(selection: &mut GameSelection) {
+fn randomize_ai_selection(selection: &mut GameSelection, build_ids: &[String]) {
+    if build_ids.is_empty() {
+        return;
+    }
     use std::time::SystemTime;
     let nanos = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
         .subsec_nanos();
-    let tops = ["default_top", "small_top"];
-    let weapons = ["basic_blade", "basic_blaster"];
-    selection.p2_top_id = tops[(nanos as usize) % tops.len()].into();
-    selection.p2_weapon_id = weapons[((nanos / 1000) as usize) % weapons.len()].into();
+    selection.p2_build_id = build_ids[(nanos as usize) % build_ids.len()].clone();
 }
 
 fn map_display_name(id: &str) -> &str {
@@ -964,20 +849,10 @@ fn map_display_name(id: &str) -> &str {
     }
 }
 
-fn top_display_name(id: &str) -> &str {
-    match id {
-        "default_top" => "Standard Top",
-        "small_top" => "Small Top",
-        _ => id,
-    }
-}
-
-fn weapon_display_name(id: &str) -> &str {
-    match id {
-        "basic_blade" => "Basic Blade",
-        "basic_blaster" => "Basic Blaster",
-        _ => id,
-    }
+fn build_display_name(id: &str, registry: &PartRegistry) -> String {
+    registry.builds.get(id)
+        .map(|b| b.name.clone())
+        .unwrap_or_else(|| id.to_string())
 }
 
 /// Generic button spawner for menu screens.

@@ -8,7 +8,19 @@ use super::trait_screw::TraitScrewSpec;
 use super::weapon_wheel::{MeleeSpec, RangedSpec, WeaponWheelSpec};
 use super::Build;
 use crate::game::stats::base::BaseStats;
-use crate::game::stats::types::{MetersPerSec, Radius, SpinHp, WeaponKind};
+use crate::game::stats::types::WeaponKind;
+
+/// Lightweight reference to a build (stores part IDs, not resolved specs).
+#[derive(Clone, Debug)]
+pub struct BuildRef {
+    pub id: String,
+    pub name: String,
+    pub top_id: String,
+    pub weapon_id: String,
+    pub shaft_id: String,
+    pub chassis_id: String,
+    pub screw_id: String,
+}
 
 /// Registry of all available parts and tops, indexed by ID.
 /// Currently populated with hardcoded presets.
@@ -20,6 +32,7 @@ pub struct PartRegistry {
     pub shafts: HashMap<String, ShaftSpec>,
     pub chassis: HashMap<String, ChassisSpec>,
     pub screws: HashMap<String, TraitScrewSpec>,
+    pub builds: HashMap<String, BuildRef>,
 }
 
 impl PartRegistry {
@@ -29,19 +42,6 @@ impl PartRegistry {
 
         // ── Tops ─────────────────────────────────────────────────
         reg.tops.insert("default_top".into(), BaseStats::default());
-        reg.tops.insert(
-            "small_top".into(),
-            BaseStats {
-                id: "small_top".into(),
-                name: "Small Top".into(),
-                spin_hp_max: SpinHp(80.0),
-                radius: Radius(0.35),
-                move_speed: MetersPerSec(6.0),
-                accel: 30.0,
-                control_reduction: 0.0,
-                sprite_path: None,
-            },
-        );
 
         // ── Weapons ────────────────────────────────────────────────
         reg.weapons.insert(
@@ -82,7 +82,93 @@ impl PartRegistry {
         reg.screws
             .insert("standard_screw".into(), TraitScrewSpec::default());
 
+        // ── Default Builds ───────────────────────────────────────
+        reg.builds.insert(
+            "default_blade".into(),
+            BuildRef {
+                id: "default_blade".into(),
+                name: "Standard Top + Blade".into(),
+                top_id: "default_top".into(),
+                weapon_id: "basic_blade".into(),
+                shaft_id: "standard_shaft".into(),
+                chassis_id: "standard_chassis".into(),
+                screw_id: "standard_screw".into(),
+            },
+        );
+        reg.builds.insert(
+            "default_blaster".into(),
+            BuildRef {
+                id: "default_blaster".into(),
+                name: "Standard Top + Blaster".into(),
+                top_id: "default_top".into(),
+                weapon_id: "basic_blaster".into(),
+                shaft_id: "standard_shaft".into(),
+                chassis_id: "standard_chassis".into(),
+                screw_id: "standard_screw".into(),
+            },
+        );
+
         reg
+    }
+
+    /// Load custom user-created parts from SQLite into the registry.
+    pub fn merge_custom_parts(
+        &mut self,
+        repo: &crate::storage::sqlite_repo::SqliteRepo,
+        rt: &tokio::runtime::Runtime,
+    ) {
+        if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "top") {
+            for (id, _kind, json) in parts {
+                if let Ok(spec) = serde_json::from_str::<BaseStats>(&json) {
+                    self.tops.insert(id, spec);
+                }
+            }
+        }
+        if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "weapon") {
+            for (id, _kind, json) in parts {
+                if let Ok(spec) = serde_json::from_str::<WeaponWheelSpec>(&json) {
+                    self.weapons.insert(id, spec);
+                }
+            }
+        }
+        if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "shaft") {
+            for (id, _kind, json) in parts {
+                if let Ok(spec) = serde_json::from_str::<ShaftSpec>(&json) {
+                    self.shafts.insert(id, spec);
+                }
+            }
+        }
+        if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "chassis") {
+            for (id, _kind, json) in parts {
+                if let Ok(spec) = serde_json::from_str::<ChassisSpec>(&json) {
+                    self.chassis.insert(id, spec);
+                }
+            }
+        }
+        if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "screw") {
+            for (id, _kind, json) in parts {
+                if let Ok(spec) = serde_json::from_str::<TraitScrewSpec>(&json) {
+                    self.screws.insert(id, spec);
+                }
+            }
+        }
+    }
+
+    /// Load custom user-created builds from SQLite into the registry.
+    pub fn merge_custom_builds(
+        &mut self,
+        repo: &crate::storage::sqlite_repo::SqliteRepo,
+        rt: &tokio::runtime::Runtime,
+    ) {
+        if let Ok(rows) = repo.load_all_builds_sync(rt) {
+            for (id, top_id, weapon_id, shaft_id, chassis_id, screw_id, note) in rows {
+                let name = if note.is_empty() { id.clone() } else { note };
+                self.builds.insert(
+                    id.clone(),
+                    BuildRef { id, name, top_id, weapon_id, shaft_id, chassis_id, screw_id },
+                );
+            }
+        }
     }
 
     /// Assemble a `Build` by looking up each part ID in the registry.

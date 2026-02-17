@@ -3,7 +3,6 @@ use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::path::PathBuf;
 
-use super::repo::BuildRepository;
 use crate::game::parts::Build;
 use crate::game::stats::effective::EffectiveStats;
 
@@ -36,8 +35,6 @@ impl SqliteRepo {
     }
 
     pub async fn save_build_async(&self, build: &Build) -> Result<(), sqlx::Error> {
-        let spec_json =
-            serde_json::to_string(build).unwrap_or_default();
         let weapon_id = &build.weapon.id;
         let shaft_id = &build.shaft.id;
         let chassis_id = &build.chassis.id;
@@ -139,5 +136,124 @@ impl SqliteRepo {
             }
             serde_json::from_str(&json).ok()
         }))
+    }
+
+    // ── Part CRUD (async) ──────────────────────────────────────────────
+
+    pub async fn save_part_async(
+        &self,
+        slot: &str,
+        kind: &str,
+        id: &str,
+        spec_json: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO parts (id, slot, kind, spec_json, balance_version) VALUES (?, ?, ?, ?, 1)",
+        )
+        .bind(id)
+        .bind(slot)
+        .bind(kind)
+        .bind(spec_json)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn load_parts_by_slot_async(
+        &self,
+        slot: &str,
+    ) -> Result<Vec<(String, String, String)>, sqlx::Error> {
+        let rows: Vec<(String, String, String)> = sqlx::query_as(
+            "SELECT id, kind, spec_json FROM parts WHERE slot = ?",
+        )
+        .bind(slot)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn delete_part_async(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM parts WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn load_all_builds_async(
+        &self,
+    ) -> Result<Vec<(String, String, String, String, String, String, String)>, sqlx::Error> {
+        let rows: Vec<(String, String, String, String, String, String, String)> = sqlx::query_as(
+            "SELECT id, top_id, weapon_id, shaft_id, chassis_id, screw_id, COALESCE(note, '') FROM builds",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn delete_build_async(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM builds WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    // ── Sync wrappers (use TokioRuntime resource) ──────────────────────
+
+    pub fn save_part_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        slot: &str,
+        kind: &str,
+        id: &str,
+        spec_json: &str,
+    ) -> Result<(), String> {
+        rt.block_on(self.save_part_async(slot, kind, id, spec_json))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn load_parts_by_slot_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        slot: &str,
+    ) -> Result<Vec<(String, String, String)>, String> {
+        rt.block_on(self.load_parts_by_slot_async(slot))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn delete_part_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        id: &str,
+    ) -> Result<(), String> {
+        rt.block_on(self.delete_part_async(id))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn save_build_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        build: &Build,
+    ) -> Result<(), String> {
+        rt.block_on(self.save_build_async(build))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn load_all_builds_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+    ) -> Result<Vec<(String, String, String, String, String, String, String)>, String> {
+        rt.block_on(self.load_all_builds_async())
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn delete_build_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        id: &str,
+    ) -> Result<(), String> {
+        rt.block_on(self.delete_build_async(id))
+            .map_err(|e| e.to_string())
     }
 }
