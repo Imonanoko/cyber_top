@@ -7,7 +7,7 @@ mod storage;
 use bevy::prelude::*;
 
 use config::tuning::Tuning;
-use plugins::{game_plugin::GamePlugin, menu_plugin::MenuPlugin, storage_plugin::StoragePlugin, ui_plugin::UiPlugin};
+use plugins::{design_plugin::DesignPlugin, game_plugin::GamePlugin, menu_plugin::MenuPlugin, storage_plugin::StoragePlugin, ui_plugin::UiPlugin};
 
 fn main() {
     let tuning = Tuning::load_or_default();
@@ -16,7 +16,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Cyber Top".into(),
-                resolution: (800u32, 800u32).into(),
+                resolution: (1200u32, 900u32).into(),
                 ..default()
             }),
             ..default()
@@ -27,5 +27,6 @@ fn main() {
         .add_plugins(MenuPlugin)
         .add_plugins(UiPlugin)
         .add_plugins(StoragePlugin)
+        .add_plugins(DesignPlugin)
         .run();
 }

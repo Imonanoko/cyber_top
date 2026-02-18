@@ -133,7 +133,6 @@ pub enum AimMode {
 pub enum WeaponKind {
     Melee,
     Ranged,
-    Hybrid,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

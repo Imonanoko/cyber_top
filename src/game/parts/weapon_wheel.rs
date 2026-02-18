@@ -105,7 +105,7 @@ pub struct WeaponWheelSpec {
 
 impl WeaponWheelSpec {
     /// Get the effective spin rate multiplier from the active spec.
-    /// Hybrid: uses the max of both. No spec: defaults to 1.0.
+    /// No spec: defaults to 1.0.
     pub fn spin_rate_multiplier(&self) -> f32 {
         match (&self.melee, &self.ranged) {
             (Some(m), Some(r)) => m.spin_rate_multiplier.max(r.spin_rate_multiplier),
