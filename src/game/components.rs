@@ -43,11 +43,18 @@ pub enum GamePhase {
     ManageParts,
     AssembleBuild,
     PickDesignPart,
+    // ── Map design flow ──
+    DesignMapHub,
+    EditMap,
 }
 
 /// Marker: tag all game-session entities for cleanup when returning to main menu.
 #[derive(Component)]
 pub struct InGame;
+
+/// Runtime arena radius (may differ from tuning if custom map is used).
+#[derive(Resource)]
+pub struct ArenaRadius(pub f32);
 
 /// Marker for Player 2 (local PvP).
 #[derive(Component)]
@@ -193,6 +200,46 @@ pub struct ObstacleBehavior(pub CollisionBehavior);
 
 #[derive(Component)]
 pub struct ExpiresAt(pub f64);
+
+// ── Map item components (battle) ────────────────────────────────────
+
+/// A persistent obstacle placed by map design (no TTL, bounces tops).
+#[derive(Component)]
+pub struct StaticObstacle;
+
+/// Gravity device: periodically overrides velocity direction toward itself.
+#[derive(Component)]
+pub struct GravityDevice {
+    pub last_pulse: f64,
+    pub interval: f64,
+    pub radius: f32,
+}
+
+/// Speed boost zone: tops in range get a speed multiplier.
+#[derive(Component)]
+pub struct SpeedBoostZone {
+    pub multiplier: f32,
+    pub duration: f32,
+}
+
+/// Damage boost zone: tops in range deal more damage.
+#[derive(Component)]
+pub struct DamageBoostZone {
+    pub multiplier: f32,
+}
+
+/// Active speed boost effect on a top.
+#[derive(Component)]
+pub struct SpeedBoostEffect {
+    pub expires_at: f64,
+    pub multiplier: f32,
+}
+
+/// Active damage boost effect on a top (while in zone).
+#[derive(Component)]
+pub struct DamageBoostActive {
+    pub multiplier: f32,
+}
 
 // ── Melee tracking ──────────────────────────────────────────────────
 

@@ -198,7 +198,7 @@ fn spawn_main_menu(mut commands: Commands) {
                 Node { margin: UiRect::bottom(Val::Px(40.0)), ..default() },
             ));
             spawn_btn(parent, "Start Game", MenuButton::StartGame, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
-            spawn_btn(parent, "Design Map (Coming Soon)", MenuButton::DesignMap, COLOR_BTN_DISABLED, COLOR_TEXT_DIM, 360.0, 56.0);
+            spawn_btn(parent, "Design Map", MenuButton::DesignMap, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
             spawn_btn(parent, "Design Top", MenuButton::DesignTop, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
         });
 }
@@ -225,9 +225,14 @@ fn menu_button_system(
                 Interaction::Hovered => *bg = BackgroundColor(COLOR_BTN_HOVER),
                 Interaction::None => *bg = BackgroundColor(COLOR_BTN),
             },
-            MenuButton::DesignMap => {
-                *bg = BackgroundColor(COLOR_BTN_DISABLED);
-            }
+            MenuButton::DesignMap => match *interaction {
+                Interaction::Pressed => {
+                    *bg = BackgroundColor(COLOR_BTN_PRESS);
+                    next_state.set(GamePhase::DesignMapHub);
+                }
+                Interaction::Hovered => *bg = BackgroundColor(COLOR_BTN_HOVER),
+                Interaction::None => *bg = BackgroundColor(COLOR_BTN),
+            },
         }
     }
 }
@@ -445,7 +450,7 @@ fn update_selection_hub_visuals(
 // MAP PICKER
 // ═══════════════════════════════════════════════════════════════════════
 
-fn spawn_map_picker(mut commands: Commands, selection: Res<GameSelection>) {
+fn spawn_map_picker(mut commands: Commands, selection: Res<GameSelection>, registry: Res<PartRegistry>) {
     commands
         .spawn((
             PickerRoot,
@@ -480,9 +485,14 @@ fn spawn_map_picker(mut commands: Commands, selection: Res<GameSelection>) {
                 margin: UiRect::top(Val::Px(20.0)),
                 ..default()
             }).with_children(|grid| {
-                spawn_map_card(grid, "default_arena", "Default Arena",
-                    "Circular arena, R=12", Color::srgba(0.15, 0.15, 0.2, 1.0),
-                    selection.map_id == "default_arena");
+                let mut maps: Vec<_> = registry.maps.values().collect();
+                maps.sort_by(|a, b| a.name.cmp(&b.name));
+                for map in maps {
+                    let desc = format!("R={:.0}, {} items", map.arena_radius, map.placements.len());
+                    spawn_map_card(grid, &map.id, &map.name,
+                        &desc, Color::srgba(0.15, 0.15, 0.2, 1.0),
+                        selection.map_id == map.id);
+                }
             });
 
             // Back button

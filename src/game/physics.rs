@@ -6,16 +6,31 @@ use crate::config::tuning::Tuning;
 /// PhysicsSet: integrate velocity → position, update rotation angle.
 pub fn integrate_physics(
     tuning: Res<Tuning>,
-    mut query: Query<(&mut Transform, &Velocity, &mut RotationAngle, &TopBuild), With<Top>>,
+    mut query: Query<(&mut Transform, &Velocity, &mut RotationAngle, &TopBuild, &SpeedBoostEffect), With<Top>>,
+    mut tick: Local<u32>,
 ) {
-    let dt = tuning.dt;
-    for (mut transform, vel, mut angle, build) in &mut query {
-        transform.translation.x += vel.0.x * dt;
-        transform.translation.y += vel.0.y * dt;
+    *tick = tick.wrapping_add(1);
+    let log_this_tick = *tick % 60 == 0;
 
-        if vel.0.length_squared() > 0.001 {
+    let dt = tuning.dt;
+    for (mut transform, vel, mut angle, build, speed_boost) in &mut query {
+        let eff_vel = vel.0 * speed_boost.multiplier;
+
+        if log_this_tick && speed_boost.multiplier > 1.001 {
+            info!(
+                "[SpeedBoost] vel_speed={:.2}  eff_speed={:.2}  multiplier={:.2}",
+                vel.0.length(),
+                eff_vel.length(),
+                speed_boost.multiplier
+            );
+        }
+
+        transform.translation.x += eff_vel.x * dt;
+        transform.translation.y += eff_vel.y * dt;
+
+        if eff_vel.length_squared() > 0.001 {
             let weapon_mult = build.0.weapon.spin_rate_multiplier();
-            let spin_rate = vel.0.length() * tuning.spin_visual_k * weapon_mult;
+            let spin_rate = eff_vel.length() * tuning.spin_visual_k * weapon_mult;
             angle.0 = angle.0.advance(spin_rate * dt);
         }
 

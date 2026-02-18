@@ -455,6 +455,7 @@ enum HubButton {
     NewChassis,
     NewScrew,
     ManageParts,
+    DesignMap,
     Back,
 }
 
@@ -505,8 +506,13 @@ fn spawn_design_hub(mut commands: Commands, mut state: ResMut<DesignState>) {
         });
 
         // Manage section
-        root.spawn(Node { margin: UiRect::top(Val::Px(24.0)), ..default() }).with_children(|row| {
+        root.spawn(Node {
+            margin: UiRect::top(Val::Px(24.0)),
+            column_gap: Val::Px(16.0),
+            ..default()
+        }).with_children(|row| {
             spawn_button(row, "My Parts & Builds", HubButton::ManageParts);
+            spawn_button(row, "Design Map", HubButton::DesignMap);
         });
 
         // Back
@@ -548,6 +554,9 @@ fn design_hub_system(
                 HubButton::ManageParts => {
                     state.editing_part_id = None;
                     next_state.set(GamePhase::ManageParts);
+                }
+                HubButton::DesignMap => {
+                    next_state.set(GamePhase::DesignMapHub);
                 }
                 HubButton::Back => {
                     state.editing_part_id = None;

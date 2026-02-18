@@ -4,6 +4,7 @@ pub mod combat;
 pub mod components;
 pub mod events;
 pub mod hooks;
+pub mod map;
 pub mod parts;
 pub mod physics;
 pub mod stats;

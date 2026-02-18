@@ -7,7 +7,7 @@ mod storage;
 use bevy::prelude::*;
 
 use config::tuning::Tuning;
-use plugins::{design_plugin::DesignPlugin, game_plugin::GamePlugin, menu_plugin::MenuPlugin, storage_plugin::StoragePlugin, ui_plugin::UiPlugin};
+use plugins::{design_plugin::DesignPlugin, game_plugin::GamePlugin, map_design_plugin::MapDesignPlugin, menu_plugin::MenuPlugin, storage_plugin::StoragePlugin, ui_plugin::UiPlugin};
 
 fn main() {
     let tuning = Tuning::load_or_default();
@@ -28,5 +28,6 @@ fn main() {
         .add_plugins(UiPlugin)
         .add_plugins(StoragePlugin)
         .add_plugins(DesignPlugin)
+        .add_plugins(MapDesignPlugin)
         .run();
 }

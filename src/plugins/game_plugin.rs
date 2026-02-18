@@ -59,9 +59,15 @@ impl Plugin for GamePlugin {
         );
 
         // PhysicsSet — chained to fix B0002 (parallel Transform/Velocity conflicts)
+        // Zone systems (speed/damage/gravity) run BEFORE integrate_physics
+        // so their effects are applied in the same frame (no deferred Commands).
         app.add_systems(
             FixedUpdate,
             (
+                speed_boost_system,
+                speed_boost_tick,
+                damage_boost_system,
+                gravity_device_system,
                 physics::integrate_physics,
                 physics::integrate_projectiles,
                 physics::spin_drain,
@@ -69,6 +75,7 @@ impl Plugin for GamePlugin {
                 physics::tick_status_effects,
                 physics::tick_melee_trackers,
                 circle::wall_reflection,
+                obstacle::static_obstacle_bounce,
             )
                 .chain()
                 .in_set(FixedGameSet::PhysicsSet),
@@ -178,6 +185,7 @@ fn setup_camera(
     if let (Some(repo), Some(rt)) = (repo, tokio_rt) {
         registry.merge_custom_parts(&repo, &rt.0);
         registry.merge_custom_builds(&repo, &rt.0);
+        registry.merge_custom_maps(&repo, &rt.0);
     }
     commands.insert_resource(registry);
 }
@@ -323,14 +331,111 @@ fn setup_arena(
 ) {
     let ppu = tuning.pixels_per_unit.max(1.0);
 
+    // Look up map from registry
+    let map_spec = registry.maps.get(&selection.map_id);
+    let arena_radius = map_spec.map(|m| m.arena_radius).unwrap_or(tuning.arena_radius);
+
     // Arena boundary
-    let arena_mesh = meshes.add(Circle::new(tuning.arena_radius));
+    let arena_mesh = meshes.add(Circle::new(arena_radius));
     commands.spawn((
         InGame,
         Mesh2d(arena_mesh),
         MeshMaterial2d(materials.add(Color::srgba(0.15, 0.15, 0.2, 1.0))),
         Transform::from_translation(Vec3::new(0.0, 0.0, -1.0)),
     ));
+
+    // Store the actual arena radius for use by physics systems
+    commands.insert_resource(ArenaRadius(arena_radius));
+
+    // Spawn map placements
+    if let Some(map) = map_spec {
+        let mut obs_count = 0u32;
+        let mut gravity_count = 0u32;
+        let mut speed_count = 0u32;
+        let mut damage_count = 0u32;
+        // Zone tiles use a 1.0-unit radius circle so they are clearly visible
+        // and easy to overlap (detection threshold = top_radius + 1.0 ≈ 2.3 units).
+        let zone_radius = 1.0_f32;
+
+        for placement in &map.placements {
+            let wx = placement.grid_x as f32 * crate::game::map::GRID_CELL_SIZE;
+            let wy = placement.grid_y as f32 * crate::game::map::GRID_CELL_SIZE;
+            let pos = Vec3::new(wx, wy, 0.0);
+            let cell_radius = crate::game::map::GRID_CELL_SIZE * 0.5;
+
+            match placement.item {
+                crate::game::map::MapItem::Obstacle => {
+                    obs_count += 1;
+                    let obs_mesh = meshes.add(Rectangle::new(
+                        crate::game::map::GRID_CELL_SIZE,
+                        crate::game::map::GRID_CELL_SIZE,
+                    ));
+                    commands.spawn((
+                        InGame,
+                        StaticObstacle,
+                        ObstacleMarker,
+                        CollisionRadius(cell_radius),
+                        ObstacleBehavior(CollisionBehavior::DamageOnHit),
+                        ObstacleOwner(None),
+                        Mesh2d(obs_mesh),
+                        MeshMaterial2d(materials.add(Color::srgba(0.5, 0.5, 0.5, 0.8))),
+                        Transform::from_translation(pos),
+                    ));
+                }
+                crate::game::map::MapItem::GravityDevice => {
+                    gravity_count += 1;
+                    // Visual: show effect radius as a semi-transparent circle
+                    let effect_radius = 2.0;
+                    let grav_mesh = meshes.add(Circle::new(effect_radius));
+                    commands.spawn((
+                        InGame,
+                        GravityDevice {
+                            last_pulse: 0.0,
+                            interval: 0.0,
+                            radius: effect_radius,
+                        },
+                        CollisionRadius(cell_radius),
+                        Mesh2d(grav_mesh),
+                        MeshMaterial2d(materials.add(Color::srgba(0.6, 0.2, 0.8, 0.25))),
+                        Transform::from_translation(pos),
+                    ));
+                }
+                crate::game::map::MapItem::SpeedBoost => {
+                    speed_count += 1;
+                    let boost_mesh = meshes.add(Circle::new(zone_radius));
+                    commands.spawn((
+                        InGame,
+                        SpeedBoostZone {
+                            multiplier: 1.5,
+                            duration: 3.0,
+                        },
+                        CollisionRadius(zone_radius),
+                        Mesh2d(boost_mesh),
+                        MeshMaterial2d(materials.add(Color::srgba(0.2, 0.8, 0.3, 0.4))),
+                        Transform::from_translation(pos.with_z(-0.5)),
+                    ));
+                }
+                crate::game::map::MapItem::DamageBoost => {
+                    damage_count += 1;
+                    let dmg_mesh = meshes.add(Circle::new(zone_radius));
+                    commands.spawn((
+                        InGame,
+                        DamageBoostZone { multiplier: 1.5 },
+                        CollisionRadius(zone_radius),
+                        Mesh2d(dmg_mesh),
+                        MeshMaterial2d(materials.add(Color::srgba(0.8, 0.2, 0.2, 0.4))),
+                        Transform::from_translation(pos.with_z(-0.5)),
+                    ));
+                }
+            }
+        }
+        info!(
+            "Map '{}' loaded: {} obstacles, {} gravity, {} speed-boost, {} damage-boost zones",
+            selection.map_id, obs_count, gravity_count, speed_count, damage_count
+        );
+    } else {
+        info!("Map '{}' not found in registry — using default arena (no placements)", selection.map_id);
+    }
 
     // Projectile assets (mesh fallback + sprite handles)
     let proj_mesh = meshes.add(Circle::new(1.0));
@@ -372,6 +477,8 @@ fn setup_arena(
         ControlState::default(),
         StatusEffects::default(),
         (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
+        SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
+        DamageBoostActive { multiplier: 1.0 },
     ));
     insert_top_visual(&mut p1_entity, &p1_top_id, p1_radius, &game_assets, &mut meshes, &mut materials);
     p1_entity.with_children(|parent| {
@@ -420,6 +527,8 @@ fn setup_arena(
         ControlState::default(),
         StatusEffects::default(),
         (LaunchAim { angle: PI, confirmed: false }, MeleeHitTracker::default(), combat::RangedFireTimer::default()),
+        SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
+        DamageBoostActive { multiplier: 1.0 },
     ));
 
     match selection.mode {
@@ -460,6 +569,7 @@ fn cleanup_game(
         commands.entity(entity).despawn();
     }
     commands.remove_resource::<ProjectileAssets>();
+    commands.remove_resource::<ArenaRadius>();
 }
 
 // ── Aiming phase systems ────────────────────────────────────────────
@@ -665,6 +775,121 @@ fn play_sound_effects(
                 ));
             }
             _ => {}
+        }
+    }
+}
+
+// ── Map item battle systems ─────────────────────────────────────────
+
+/// Gravity device: continuously steers tops toward the device while in range.
+/// Each tick, blends velocity direction toward the device by `steer_strength * dt`.
+fn gravity_device_system(
+    tuning: Res<Tuning>,
+    devices: Query<(&Transform, &GravityDevice)>,
+    mut tops: Query<(&Transform, &mut Velocity, &TopEffectiveStats), (With<Top>, Without<GravityDevice>)>,
+) {
+    let dt = tuning.dt;
+    // Steer strength: fraction of direction blended per second (higher = stronger pull)
+    let steer_strength = 3.0_f32;
+
+    for (dev_tf, device) in &devices {
+        let dev_pos = dev_tf.translation.truncate();
+
+        for (top_tf, mut vel, top_stats) in &mut tops {
+            let top_pos = top_tf.translation.truncate();
+            let top_radius = top_stats.0.radius.0;
+            let dist = top_pos.distance(dev_pos);
+
+            if dist < device.radius + top_radius && dist > 0.01 {
+                let speed = vel.0.length();
+                if speed > 0.01 {
+                    let toward_device = (dev_pos - top_pos) / dist;
+                    // Blend current direction toward device direction
+                    let blend = (steer_strength * dt).min(1.0);
+                    let current_dir = vel.0 / speed;
+                    let new_dir = (current_dir * (1.0 - blend) + toward_device * blend).normalize();
+                    vel.0 = new_dir * speed;
+                }
+            }
+        }
+    }
+}
+
+/// Speed boost: tops overlapping a SpeedBoostZone get a speed multiplier.
+/// Mutates the always-present SpeedBoostEffect directly (no deferred Commands).
+fn speed_boost_system(
+    time: Res<Time>,
+    zones: Query<(&Transform, &CollisionRadius, &SpeedBoostZone)>,
+    mut tops: Query<(&Transform, &TopEffectiveStats, &mut SpeedBoostEffect), With<Top>>,
+) {
+    let now = time.elapsed_secs_f64();
+
+    for (top_tf, top_stats, mut effect) in &mut tops {
+        let top_pos = top_tf.translation.truncate();
+        let top_radius = top_stats.0.radius.0;
+        let mut in_zone = false;
+        let mut best_mult = 1.0_f32;
+        let mut best_dur = 0.0_f32;
+
+        for (zone_tf, zone_r, zone) in &zones {
+            let zone_pos = zone_tf.translation.truncate();
+            if top_pos.distance(zone_pos) < top_radius + zone_r.0 {
+                in_zone = true;
+                best_mult = best_mult.max(zone.multiplier);
+                best_dur = best_dur.max(zone.duration);
+            }
+        }
+
+        if in_zone {
+            if effect.multiplier <= 1.0 {
+                info!("SpeedBoost ACTIVATED: multiplier={:.2}, duration={:.1}s", best_mult, best_dur);
+            }
+            effect.expires_at = now + best_dur as f64;
+            effect.multiplier = best_mult;
+        }
+    }
+}
+
+/// Reset expired speed boost effects to neutral (multiplier 1.0).
+fn speed_boost_tick(
+    time: Res<Time>,
+    mut query: Query<&mut SpeedBoostEffect>,
+) {
+    let now = time.elapsed_secs_f64();
+    for mut effect in &mut query {
+        if now >= effect.expires_at {
+            effect.multiplier = 1.0;
+        }
+    }
+}
+
+/// Damage boost: tops overlapping a DamageBoostZone get a damage multiplier.
+/// Mutates the always-present DamageBoostActive directly (no deferred Commands).
+fn damage_boost_system(
+    zones: Query<(&Transform, &CollisionRadius, &DamageBoostZone)>,
+    mut tops: Query<(&Transform, &TopEffectiveStats, &mut DamageBoostActive), With<Top>>,
+) {
+    for (top_tf, top_stats, mut boost) in &mut tops {
+        let top_pos = top_tf.translation.truncate();
+        let top_radius = top_stats.0.radius.0;
+        let mut in_zone = false;
+        let mut best_mult = 1.0_f32;
+
+        for (zone_tf, zone_r, zone) in &zones {
+            let zone_pos = zone_tf.translation.truncate();
+            if top_pos.distance(zone_pos) < top_radius + zone_r.0 {
+                in_zone = true;
+                best_mult = best_mult.max(zone.multiplier);
+            }
+        }
+
+        if in_zone {
+            if boost.multiplier <= 1.0 {
+                info!("DamageBoost ACTIVATED: multiplier={:.2}", best_mult);
+            }
+            boost.multiplier = best_mult;
+        } else {
+            boost.multiplier = 1.0;
         }
     }
 }

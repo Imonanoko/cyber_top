@@ -199,6 +199,46 @@ impl SqliteRepo {
         Ok(())
     }
 
+    // ── Map CRUD (async) ──────────────────────────────────────────────
+
+    pub async fn save_map_async(
+        &self,
+        id: &str,
+        name: &str,
+        arena_radius: f32,
+        placements_json: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO maps (id, name, arena_radius, placements_json) VALUES (?, ?, ?, ?)",
+        )
+        .bind(id)
+        .bind(name)
+        .bind(arena_radius as f64)
+        .bind(placements_json)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn load_all_maps_async(
+        &self,
+    ) -> Result<Vec<(String, String, f64, String)>, sqlx::Error> {
+        let rows: Vec<(String, String, f64, String)> = sqlx::query_as(
+            "SELECT id, name, arena_radius, placements_json FROM maps",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn delete_map_async(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM maps WHERE id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     // ── Sync wrappers (use TokioRuntime resource) ──────────────────────
 
     pub fn save_part_sync(
@@ -254,6 +294,35 @@ impl SqliteRepo {
         id: &str,
     ) -> Result<(), String> {
         rt.block_on(self.delete_build_async(id))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn save_map_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        id: &str,
+        name: &str,
+        arena_radius: f32,
+        placements_json: &str,
+    ) -> Result<(), String> {
+        rt.block_on(self.save_map_async(id, name, arena_radius, placements_json))
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn load_all_maps_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+    ) -> Result<Vec<(String, String, f64, String)>, String> {
+        rt.block_on(self.load_all_maps_async())
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn delete_map_sync(
+        &self,
+        rt: &tokio::runtime::Runtime,
+        id: &str,
+    ) -> Result<(), String> {
+        rt.block_on(self.delete_map_async(id))
             .map_err(|e| e.to_string())
     }
 }
