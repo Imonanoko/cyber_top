@@ -11,15 +11,15 @@ Two tops are launched into a circular arena; physics (collisions, wall reflectio
 
 ```
 MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver → MainMenu
-                 ↕
-          DesignHub → ManageParts → EditTop / EditWeapon / EditShaft / EditChassis / EditScrew
+                 ↕                                                ↕
+          DesignHub → ManageParts → EditTop / EditWeapon / ...        DesignMapHub → EditMap
                                  → AssembleBuild → PickDesignPart
 ```
 
 ### GamePhase States
 
 **Game flow:**
-- **MainMenu**: Title screen with Start Game, Design Map (Coming Soon), Design Top
+- **MainMenu**: Title screen with Start Game, Design Map, Design Top
 - **Selection**: Hub screen — choose mode (PvP / PvAI), map, P1/P2 builds
 - **PickMap**: Dedicated map picker with card-based preview UI
 - **PickTop**: Build picker — select a complete build (top + weapon + parts). Reused for P1 and P2 via `PickingFor` resource.
@@ -45,10 +45,11 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 
 | Plugin | File | Role |
 |--------|------|------|
-| `GamePlugin` | `plugins/game_plugin.rs` | FixedUpdate scheduling, arena setup, aiming, launch, game over |
+| `GamePlugin` | `plugins/game_plugin.rs` | FixedUpdate scheduling, arena/zone setup, zone systems, aiming, launch |
 | `MenuPlugin` | `plugins/menu_plugin.rs` | MainMenu, Selection hub, Map/Build pickers, GameOver overlay |
 | `DesignPlugin` | `plugins/design_plugin.rs` | Design workshop: part editors, build assembly, part management |
-| `UiPlugin` | `plugins/ui_plugin.rs` | In-game HUD (HP, velocity, phase text) |
+| `MapDesignPlugin` | `plugins/map_design_plugin.rs` | Map list (DesignMapHub) and grid editor (EditMap) |
+| `UiPlugin` | `plugins/ui_plugin.rs` | Battle HUD (HP, effective speed, effective weapon damage) |
 | `StoragePlugin` | `plugins/storage_plugin.rs` | SQLite/SQLx init, TokioRuntime resource |
 
 ---
@@ -59,9 +60,10 @@ SystemSets in strict chain order:
 
 ```
 1. PhysicsSet (chained):
-   integrate_physics -> integrate_projectiles -> spin_drain ->
-   tick_control_state -> tick_status_effects -> tick_melee_trackers ->
-   wall_reflection
+   speed_boost_system -> speed_boost_tick -> damage_boost_system ->
+   gravity_device_system -> integrate_physics -> integrate_projectiles ->
+   spin_drain -> tick_control_state -> tick_status_effects ->
+   tick_melee_trackers -> wall_reflection -> static_obstacle_bounce
 
 2. CollisionDetectSet:
    detect_collisions
@@ -218,6 +220,38 @@ All images must be **PNG format with RGBA** (transparent background recommended)
 - Removes from SQLite + in-memory registry
 - Deletes associated image file from `assets/{slot}/`
 - For weapons: also deletes projectile image from `assets/projectiles/`
+
+---
+
+## Map Design System
+
+### Map Data Model (`src/game/map.rs`)
+- `MapSpec { id, name, arena_radius, placements: Vec<MapPlacement> }`
+- `MapPlacement { grid_x, grid_y, item: MapItem }`
+- `MapItem`: `Obstacle | GravityDevice | SpeedBoost | DamageBoost`
+- Grid cell = 0.5 world units; world pos = `(grid_x × 0.5, grid_y × 0.5)`
+- Placement validity: `dist_from_center + 0.25 < arena_radius`
+
+### Storage
+- SQLite `maps` table: `id TEXT PK, name TEXT, arena_radius REAL, placements_json TEXT`
+- CRUD: `save_map_sync`, `load_all_maps_sync`, `delete_map_sync` in `SqliteRepo`
+- Loaded at startup into `PartRegistry.maps: HashMap<String, MapSpec>`
+- Built-in: `"default_arena"` (radius 12.0, no placements) always present
+
+### Map Picker
+- Map list sourced from `PartRegistry.maps` (built-in + custom)
+- Selected map ID stored in `GameSelection.map_id`
+
+### Arena Setup (`setup_arena`)
+- Looks up `MapSpec` from `registry.maps[selection.map_id]`
+- Uses `map.arena_radius` (overrides `tuning.arena_radius`)
+- Spawns entities for each placement (see `docs/map-items.md` for per-item details)
+- Inserts `ArenaRadius` resource for physics systems
+
+### Zone Effect Components
+Both components are **always present** on tops (spawned with `multiplier: 1.0`):
+- `SpeedBoostEffect { expires_at: f64, multiplier: f32 }` — mutated by zone system
+- `DamageBoostActive { multiplier: f32 }` — mutated by zone system each tick
 
 ---
 

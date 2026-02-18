@@ -5,7 +5,8 @@ use super::events::{CollisionMessage, GameEvent};
 use super::stats::types::DamageKind;
 use crate::config::tuning::Tuning;
 
-/// EventGenerateSet: convert collisions into DealDamage events.
+/// EventGenerateSet: convert collisions into DealDamage events (base damage only).
+/// DamageBoostActive is applied centrally in apply_damage_events.
 pub fn generate_collision_damage(
     tuning: Res<Tuning>,
     mut collision_events: MessageReader<CollisionMessage>,
@@ -34,7 +35,7 @@ pub fn generate_collision_damage(
 /// EventApplySet: apply DealDamage events to SpinHp.
 pub fn apply_damage_events(
     mut events: MessageReader<GameEvent>,
-    mut tops: Query<(&mut SpinHpCurrent, &TopEffectiveStats), With<Top>>,
+    mut tops: Query<(&mut SpinHpCurrent, &TopEffectiveStats, &DamageBoostActive), With<Top>>,
 ) {
     for event in events.read() {
         if let GameEvent::DealDamage {
@@ -47,15 +48,23 @@ pub fn apply_damage_events(
         {
             let mut amount = *amount;
 
-            // Apply source damage output multiplier
+            // Apply source damage output multiplier + damage boost zone
             if let Some(src_entity) = src {
-                if let Ok((_, src_stats)) = tops.get(*src_entity) {
+                if let Ok((_, src_stats, dmg_boost)) = tops.get(*src_entity) {
+                    let before = amount;
                     amount *= src_stats.0.damage_out_mult.0;
+                    amount *= dmg_boost.multiplier;
+                    if dmg_boost.multiplier > 1.001 {
+                        info!(
+                            "[DamageBoost] base={:.2} * out_mult={:.2} * boost={:.2} = {:.2}",
+                            before, src_stats.0.damage_out_mult.0, dmg_boost.multiplier, amount
+                        );
+                    }
                 }
             }
 
             // Apply destination damage intake multiplier
-            if let Ok((mut spin, dst_stats)) = tops.get_mut(*dst) {
+            if let Ok((mut spin, dst_stats, _)) = tops.get_mut(*dst) {
                 amount *= dst_stats.0.damage_in_mult.0;
                 amount = amount.max(0.0);
                 spin.0 = spin.0.sub_clamped(amount);

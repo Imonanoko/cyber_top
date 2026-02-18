@@ -7,6 +7,7 @@ use super::shaft::ShaftSpec;
 use super::trait_screw::TraitScrewSpec;
 use super::weapon_wheel::{MeleeSpec, RangedSpec, WeaponWheelSpec};
 use super::Build;
+use crate::game::map::MapSpec;
 use crate::game::stats::base::BaseStats;
 use crate::game::stats::types::WeaponKind;
 
@@ -33,6 +34,7 @@ pub struct PartRegistry {
     pub chassis: HashMap<String, ChassisSpec>,
     pub screws: HashMap<String, TraitScrewSpec>,
     pub builds: HashMap<String, BuildRef>,
+    pub maps: HashMap<String, MapSpec>,
 }
 
 impl PartRegistry {
@@ -108,6 +110,10 @@ impl PartRegistry {
             },
         );
 
+        // ── Default Maps ─────────────────────────────────────────────
+        let default_map = MapSpec::default_arena();
+        reg.maps.insert(default_map.id.clone(), default_map);
+
         reg
     }
 
@@ -166,6 +172,29 @@ impl PartRegistry {
                 self.builds.insert(
                     id.clone(),
                     BuildRef { id, name, top_id, weapon_id, shaft_id, chassis_id, screw_id },
+                );
+            }
+        }
+    }
+
+    /// Load custom user-created maps from SQLite into the registry.
+    pub fn merge_custom_maps(
+        &mut self,
+        repo: &crate::storage::sqlite_repo::SqliteRepo,
+        rt: &tokio::runtime::Runtime,
+    ) {
+        if let Ok(rows) = repo.load_all_maps_sync(rt) {
+            for (id, name, arena_radius, placements_json) in rows {
+                let placements: Vec<crate::game::map::MapPlacement> =
+                    serde_json::from_str(&placements_json).unwrap_or_default();
+                self.maps.insert(
+                    id.clone(),
+                    MapSpec {
+                        id,
+                        name,
+                        arena_radius: arena_radius as f32,
+                        placements,
+                    },
                 );
             }
         }

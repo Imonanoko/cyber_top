@@ -59,36 +59,57 @@ fn setup_ui(mut commands: Commands) {
 }
 
 fn update_hp_display(
-    player_hp_q: Query<&SpinHpCurrent, With<PlayerControlled>>,
-    ai_hp_q: Query<&SpinHpCurrent, (With<AiControlled>, Without<PlayerControlled>, Without<Player2Controlled>)>,
-    p2_hp_q: Query<&SpinHpCurrent, (With<Player2Controlled>, Without<PlayerControlled>, Without<AiControlled>)>,
-
-    player_vel_q: Query<&Velocity, With<PlayerControlled>>,
-    ai_vel_q: Query<&Velocity, (With<AiControlled>, Without<PlayerControlled>, Without<Player2Controlled>)>,
-    p2_vel_q: Query<&Velocity, (With<Player2Controlled>, Without<PlayerControlled>, Without<AiControlled>)>,
-
+    player_q: Query<
+        (&SpinHpCurrent, &Velocity, &SpeedBoostEffect, &DamageBoostActive, &TopBuild, &TopEffectiveStats),
+        With<PlayerControlled>,
+    >,
+    ai_q: Query<
+        (&SpinHpCurrent, &Velocity, &SpeedBoostEffect, &DamageBoostActive, &TopBuild, &TopEffectiveStats),
+        (With<AiControlled>, Without<PlayerControlled>, Without<Player2Controlled>),
+    >,
+    p2_q: Query<
+        (&SpinHpCurrent, &Velocity, &SpeedBoostEffect, &DamageBoostActive, &TopBuild, &TopEffectiveStats),
+        (With<Player2Controlled>, Without<PlayerControlled>, Without<AiControlled>),
+    >,
     mut text_query: Query<&mut Text, With<HpText>>,
 ) {
-    let p1_hp = player_hp_q.iter().next().map(|s| s.0 .0).unwrap_or(0.0);
-    let p2_hp = ai_hp_q
-        .iter()
-        .next()
-        .or_else(|| p2_hp_q.iter().next())
-        .map(|s| s.0 .0)
-        .unwrap_or(0.0);
+    struct TopInfo {
+        hp: f32,
+        eff_speed: f32,
+        wpn_dmg: f32,
+    }
 
-    let p1_v = player_vel_q.iter().next().map(|v| v.0.length()).unwrap_or(0.0);
-    let p2_v = ai_vel_q
-        .iter()
-        .next()
-        .or_else(|| p2_vel_q.iter().next())
-        .map(|v| v.0.length())
-        .unwrap_or(0.0);
+    let extract = |(hp, vel, spd, dmg, build, stats): (
+        &SpinHpCurrent, &Velocity, &SpeedBoostEffect, &DamageBoostActive, &TopBuild, &TopEffectiveStats,
+    )| {
+        let base_wpn_dmg = if let Some(melee) = &build.0.weapon.melee {
+            melee.base_damage
+        } else if let Some(ranged) = &build.0.weapon.ranged {
+            ranged.projectile_damage
+        } else {
+            0.0
+        };
+        TopInfo {
+            hp: hp.0.0,
+            eff_speed: vel.0.length() * spd.multiplier,
+            wpn_dmg: base_wpn_dmg * stats.0.damage_out_mult.0 * dmg.multiplier,
+        }
+    };
+
+    let default_info = TopInfo { hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 };
+
+    let p1 = player_q.iter().next().map(extract)
+        .unwrap_or(TopInfo { hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 });
+    let p2 = ai_q.iter().next()
+        .or_else(|| p2_q.iter().next())
+        .map(extract)
+        .unwrap_or(default_info);
 
     for mut text in &mut text_query {
         **text = format!(
-            "P1 HP: {:.1} | P2 HP: {:.1} | P1 v: {:.2} | P2 v: {:.2}",
-            p1_hp, p2_hp, p1_v, p2_v
+            "P1  HP:{:.1}  spd:{:.1}  wpn:{:.1}\nP2  HP:{:.1}  spd:{:.1}  wpn:{:.1}",
+            p1.hp, p1.eff_speed, p1.wpn_dmg,
+            p2.hp, p2.eff_speed, p2.wpn_dmg,
         );
     }
 }

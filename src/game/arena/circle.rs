@@ -8,9 +8,10 @@ use crate::game::events::GameEvent;
 pub fn despawn_projectiles_outside_arena(
     mut commands: Commands,
     tuning: Res<Tuning>,
+    arena_r_res: Option<Res<ArenaRadius>>,
     query: Query<(Entity, &Transform, &CollisionRadius), With<ProjectileMarker>>,
 ) {
-    let arena_r = tuning.arena_radius;
+    let arena_r = arena_r_res.map(|r| r.0).unwrap_or(tuning.arena_radius);
     for (entity, transform, radius) in &query {
         let pos = transform.translation.truncate();
         if pos.length() > arena_r + radius.0 {
@@ -23,10 +24,11 @@ pub fn despawn_projectiles_outside_arena(
 /// This is the authoritative wall reflection that also generates wall damage events.
 pub fn wall_reflection(
     tuning: Res<Tuning>,
+    arena_r_res: Option<Res<ArenaRadius>>,
     mut query: Query<(Entity, &mut Transform, &mut Velocity, &TopEffectiveStats), With<Top>>,
     mut events: MessageWriter<GameEvent>,
 ) {
-    let arena_r = tuning.arena_radius;
+    let arena_r = arena_r_res.map(|r| r.0).unwrap_or(tuning.arena_radius);
     let damping = tuning.wall_bounce_damping.clamp(0.0, 1.0);
 
     for (entity, mut transform, mut vel, stats) in &mut query {
@@ -49,9 +51,9 @@ pub fn wall_reflection(
                 vel.0 -= 2.0 * dot * normal;
                 vel.0 *= damping;
 
-                // Generate wall damage event
+                // Generate wall damage event (fixed amount, not speed-scaled)
                 if tuning.wall_damage_k > 0.0 {
-                    let wall_dmg = tuning.wall_damage_k * dot;
+                    let wall_dmg = tuning.wall_damage_k;
                     events.write(GameEvent::DealDamage {
                         src: None,
                         dst: entity,
