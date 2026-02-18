@@ -20,6 +20,10 @@ No test suite yet. No linter config beyond default `cargo` warnings.
 
 - `docs/architecture.md` — Game flow, plugin structure, FixedUpdate pipeline, asset specs, Bevy 0.18 API notes
 - `docs/design.md` — Game design spec: damage model, weapon system, equipment, numerical safety, DB schema
+- `docs/codebase-map.md` — File structure, module index, plugin→phase ownership, resource locations
+- `docs/design-workshop.md` — Design plugin: state machine, DesignState, all components/functions/transitions
+- `docs/ui-patterns.md` — UI conventions, scroll recipe, button/card/input patterns, Bevy 0.18 gotchas
+- `docs/data-model.md` — Part specs, Build/BuildRef, PartRegistry, stats layers, SQLite persistence
 
 ## Architecture Principles
 
@@ -34,7 +38,7 @@ No test suite yet. No linter config beyond default `cargo` warnings.
 ```
 MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver → MainMenu
                  ↕
-          DesignHub → ManageParts → EditWeapon / EditShaft / EditChassis / EditScrew
+          DesignHub → ManageParts → EditTop / EditWeapon / EditShaft / EditChassis / EditScrew
                                  → AssembleBuild → PickDesignPart
 ```
 

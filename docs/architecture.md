@@ -12,7 +12,7 @@ Two tops are launched into a circular arena; physics (collisions, wall reflectio
 ```
 MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver → MainMenu
                  ↕
-          DesignHub → ManageParts → EditWeapon / EditShaft / EditChassis / EditScrew
+          DesignHub → ManageParts → EditTop / EditWeapon / EditShaft / EditChassis / EditScrew
                                  → AssembleBuild → PickDesignPart
 ```
 
@@ -30,6 +30,7 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 **Design workshop flow:**
 - **DesignHub**: Entry point — Create Part, Manage Parts
 - **ManageParts**: List all custom parts and builds, edit/delete
+- **EditTop**: Top body editor (spin HP, radius, speed, accel, control reduction)
 - **EditWeapon / EditShaft / EditChassis / EditScrew**: Part editors with text inputs, image assignment, kind selector (weapon)
 - **AssembleBuild**: Assemble a build by picking parts for each slot (top, weapon, shaft, chassis, screw)
 - **PickDesignPart**: Pick a part for a specific slot during build assembly
@@ -213,6 +214,7 @@ All images must be **PNG format with RGBA** (transparent background recommended)
 4. Build immediately available in game's build picker
 
 ### Part Deletion
+- **Referential integrity**: blocks deletion if part is used by any build (shows error banner)
 - Removes from SQLite + in-memory registry
 - Deletes associated image file from `assets/{slot}/`
 - For weapons: also deletes projectile image from `assets/projectiles/`

@@ -140,6 +140,8 @@ pub struct DesignState {
     pub current_build_note: String,
     /// Where to return after editor save (DesignHub for create, ManageParts for edit)
     pub return_to_manage: bool,
+    /// Error message shown when a delete is blocked (e.g. part used by builds)
+    pub delete_error: Option<String>,
 }
 
 // ── Text Input Widget ───────────────────────────────────────────────
@@ -248,7 +250,21 @@ fn is_builtin(id: &str) -> bool {
         id,
         "default_top" | "basic_blade" | "basic_blaster"
             | "standard_shaft" | "standard_chassis" | "standard_screw"
+            | "default_blade" | "default_blaster"
     )
+}
+
+fn builds_using_part(registry: &PartRegistry, part_id: &str) -> Vec<String> {
+    registry.builds.values()
+        .filter(|b| {
+            b.top_id == part_id
+                || b.weapon_id == part_id
+                || b.shaft_id == part_id
+                || b.chassis_id == part_id
+                || b.screw_id == part_id
+        })
+        .map(|b| b.name.clone())
+        .collect()
 }
 
 fn spawn_title(parent: &mut ChildSpawnerCommands, title: &str) {
@@ -563,7 +579,9 @@ fn spawn_manage_parts(
     mut commands: Commands,
     registry: Res<PartRegistry>,
     asset_server: Res<AssetServer>,
+    mut state: ResMut<DesignState>,
 ) {
+    let error_msg = state.delete_error.take();
     let edit_icon: Handle<Image> = asset_server.load("ui/edit.png");
     let delete_icon: Handle<Image> = asset_server.load("ui/delete.png");
 
@@ -605,6 +623,25 @@ fn spawn_manage_parts(
             },
             ScrollPosition::default(),
         )).with_children(|root| {
+            // Error banner (if a delete was blocked)
+            if let Some(msg) = &error_msg {
+                root.spawn((
+                    Node {
+                        padding: UiRect::all(Val::Px(10.0)),
+                        border_radius: BorderRadius::all(Val::Px(6.0)),
+                        margin: UiRect::bottom(Val::Px(8.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgba(0.8, 0.2, 0.2, 0.9)),
+                )).with_children(|banner| {
+                    banner.spawn((
+                        Text::new(msg.clone()),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(COLOR_TEXT),
+                    ));
+                });
+            }
+
             // ── Tops ──
             spawn_section_with_tops(root, &registry.tops, &asset_server, &edit_icon, &delete_icon);
 
@@ -620,18 +657,9 @@ fn spawn_manage_parts(
             // ── Screws ──
             spawn_section_with_screws(root, &registry.screws, &asset_server, &edit_icon, &delete_icon);
 
-            // ── Builds section ──
-            root.spawn((
-                Text::new("Builds"),
-                TextFont { font_size: 18.0, ..default() },
-                TextColor(COLOR_ACCENT),
-                Node { margin: UiRect::top(Val::Px(12.0)), ..default() },
-            ));
-            root.spawn((
-                Text::new("(Use 'New Build' to assemble parts)"),
-                TextFont { font_size: 13.0, ..default() },
-                TextColor(COLOR_TEXT_DIM),
-            ));
+            // ── Builds ──
+            spawn_section_with_builds(root, &registry.builds, &edit_icon, &delete_icon);
+
             // Bottom padding so content doesn't sit against the button bar
             root.spawn(Node { height: Val::Px(8.0), ..default() });
         });
@@ -788,6 +816,68 @@ fn spawn_section_with_screws(
     });
 }
 
+fn spawn_section_with_builds(
+    root: &mut ChildSpawnerCommands,
+    builds: &std::collections::HashMap<String, crate::game::parts::registry::BuildRef>,
+    edit_icon: &Handle<Image>,
+    delete_icon: &Handle<Image>,
+) {
+    root.spawn((
+        Text::new("Builds"),
+        TextFont { font_size: 18.0, ..default() },
+        TextColor(COLOR_ACCENT),
+        Node { margin: UiRect::top(Val::Px(12.0)), ..default() },
+    ));
+
+    let mut ids: Vec<_> = builds.keys().collect();
+    ids.sort();
+
+    if ids.is_empty() {
+        root.spawn((
+            Text::new("(Use 'New Build' to assemble parts)"),
+            TextFont { font_size: 13.0, ..default() },
+            TextColor(COLOR_TEXT_DIM),
+        ));
+        return;
+    }
+
+    root.spawn(Node {
+        flex_direction: FlexDirection::Row,
+        flex_wrap: FlexWrap::Wrap,
+        column_gap: Val::Px(8.0),
+        row_gap: Val::Px(8.0),
+        justify_content: JustifyContent::Center,
+        ..default()
+    }).with_children(|grid| {
+        for id in ids {
+            let b = &builds[id];
+            let builtin = is_builtin(id);
+            let stats = format!("{} + {}", b.top_id, b.weapon_id);
+            let id_str: String = id.clone();
+            let id_str2: String = id.clone();
+            spawn_card_frame(grid, &b.name, &stats, None, COLOR_CARD, 220.0, move |card| {
+                if !builtin {
+                    card.spawn(Node {
+                        flex_direction: FlexDirection::Row,
+                        column_gap: Val::Px(8.0),
+                        margin: UiRect::top(Val::Px(4.0)),
+                        ..default()
+                    }).with_children(|row| {
+                        spawn_icon_button(row, edit_icon.clone(), ManageButton::EditBuild(id_str));
+                        spawn_icon_button(row, delete_icon.clone(), ManageButton::DeleteBuild(id_str2));
+                    });
+                } else {
+                    card.spawn((
+                        Text::new("(built-in)"),
+                        TextFont { font_size: 10.0, ..default() },
+                        TextColor(COLOR_TEXT_DIM),
+                    ));
+                }
+            });
+        }
+    });
+}
+
 fn spawn_section_with_tops(
     root: &mut ChildSpawnerCommands,
     tops: &std::collections::HashMap<String, BaseStats>,
@@ -935,11 +1025,18 @@ fn manage_parts_system(
                     next_state.set(GamePhase::EditTop);
                 }
                 ManageButton::DeleteTop(id) => {
-                    if let (Some(repo), Some(rt)) = (repo.as_ref(), rt.as_ref()) {
-                        let _ = repo.delete_part_sync(&rt.0, id);
+                    let used_by = builds_using_part(&registry, id);
+                    if !used_by.is_empty() {
+                        state.delete_error = Some(format!(
+                            "Cannot delete '{}': used by builds: {}", id, used_by.join(", ")
+                        ));
+                    } else {
+                        if let (Some(repo), Some(rt)) = (repo.as_ref(), rt.as_ref()) {
+                            let _ = repo.delete_part_sync(&rt.0, id);
+                        }
+                        let _ = std::fs::remove_file(format!("assets/tops/{}.png", id));
+                        registry.tops.remove(id.as_str());
                     }
-                    let _ = std::fs::remove_file(format!("assets/tops/{}.png", id));
-                    registry.tops.remove(id.as_str());
                     next_state.set(GamePhase::ManageParts);
                 }
                 ManageButton::EditPart { slot, id } => {
@@ -953,22 +1050,27 @@ fn manage_parts_system(
                     }
                 }
                 ManageButton::DeletePart { slot, id } => {
-                    if let (Some(repo), Some(rt)) = (repo.as_ref(), rt.as_ref()) {
-                        let _ = repo.delete_part_sync(&rt.0, id);
+                    let used_by = builds_using_part(&registry, id);
+                    if !used_by.is_empty() {
+                        state.delete_error = Some(format!(
+                            "Cannot delete '{}': used by builds: {}", id, used_by.join(", ")
+                        ));
+                    } else {
+                        if let (Some(repo), Some(rt)) = (repo.as_ref(), rt.as_ref()) {
+                            let _ = repo.delete_part_sync(&rt.0, id);
+                        }
+                        let dir = slot_dir(slot);
+                        let _ = std::fs::remove_file(format!("assets/{}/{}.png", dir, id));
+                        if *slot == PartSlot::WeaponWheel {
+                            let _ = std::fs::remove_file(format!("assets/projectiles/{}_projectile.png", id));
+                        }
+                        match slot {
+                            PartSlot::WeaponWheel => { registry.weapons.remove(id.as_str()); }
+                            PartSlot::Shaft => { registry.shafts.remove(id.as_str()); }
+                            PartSlot::Chassis => { registry.chassis.remove(id.as_str()); }
+                            PartSlot::TraitScrew => { registry.screws.remove(id.as_str()); }
+                        }
                     }
-                    // Delete associated image files
-                    let dir = slot_dir(slot);
-                    let _ = std::fs::remove_file(format!("assets/{}/{}.png", dir, id));
-                    if *slot == PartSlot::WeaponWheel {
-                        let _ = std::fs::remove_file(format!("assets/projectiles/{}_projectile.png", id));
-                    }
-                    match slot {
-                        PartSlot::WeaponWheel => { registry.weapons.remove(id.as_str()); }
-                        PartSlot::Shaft => { registry.shafts.remove(id.as_str()); }
-                        PartSlot::Chassis => { registry.chassis.remove(id.as_str()); }
-                        PartSlot::TraitScrew => { registry.screws.remove(id.as_str()); }
-                    }
-                    // Re-enter to refresh UI
                     next_state.set(GamePhase::ManageParts);
                 }
                 ManageButton::EditBuild(id) => {
@@ -1000,7 +1102,8 @@ fn manage_parts_system(
         // Icon buttons: subtle hover. Text buttons: standard hover.
         match button {
             ManageButton::EditTop(_) | ManageButton::DeleteTop(_) |
-            ManageButton::EditPart { .. } | ManageButton::DeletePart { .. } => {
+            ManageButton::EditPart { .. } | ManageButton::DeletePart { .. } |
+            ManageButton::EditBuild(_) | ManageButton::DeleteBuild(_) => {
                 match interaction {
                     Interaction::Hovered => *bg = BackgroundColor(Color::srgba(0.4, 0.4, 0.5, 0.3)),
                     Interaction::None => *bg = BackgroundColor(Color::NONE),
