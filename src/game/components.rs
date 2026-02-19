@@ -120,14 +120,6 @@ pub struct ControlState {
 }
 
 impl ControlState {
-    pub fn is_stunned(&self) -> bool {
-        !self.stun_remaining.is_expired()
-    }
-
-    pub fn is_slowed(&self) -> bool {
-        !self.slow_remaining.is_expired()
-    }
-
     pub fn tick(&mut self, dt: f32) {
         self.stun_remaining = self.stun_remaining.dec(dt);
         self.slow_remaining = self.slow_remaining.dec(dt);
@@ -154,28 +146,6 @@ impl ControlState {
     }
 }
 
-/// Status effect instances active on a Top.
-#[derive(Component, Default)]
-pub struct StatusEffects {
-    pub effects: Vec<StatusEffectInstance>,
-}
-
-#[derive(Debug, Clone)]
-pub struct StatusEffectInstance {
-    pub kind: super::events::StatusEffectKind,
-    pub remaining: Seconds,
-    pub magnitude: f32,
-}
-
-impl StatusEffects {
-    pub fn tick(&mut self, dt: f32) {
-        for effect in &mut self.effects {
-            effect.remaining = effect.remaining.dec(dt);
-        }
-        self.effects.retain(|e| !e.remaining.is_expired());
-    }
-}
-
 // ── Projectile state ────────────────────────────────────────────────
 
 #[derive(Component)]
@@ -193,7 +163,7 @@ pub struct CollisionRadius(pub f32);
 // ── Obstacle state ──────────────────────────────────────────────────
 
 #[derive(Component)]
-pub struct ObstacleOwner(pub Option<Entity>);
+pub struct ObstacleOwner;
 
 #[derive(Component)]
 pub struct ObstacleBehavior(pub CollisionBehavior);
@@ -207,11 +177,9 @@ pub struct ExpiresAt(pub f64);
 #[derive(Component)]
 pub struct StaticObstacle;
 
-/// Gravity device: periodically overrides velocity direction toward itself.
+/// Gravity device: continuously steers tops toward itself while in range.
 #[derive(Component)]
 pub struct GravityDevice {
-    pub last_pulse: f64,
-    pub interval: f64,
     pub radius: f32,
 }
 

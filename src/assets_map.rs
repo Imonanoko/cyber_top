@@ -36,10 +36,6 @@ impl GameAssets {
         self.weapon_sprites.get(weapon_id)
     }
 
-    pub fn projectile_sprite(&self, weapon_id: &str) -> Option<&Handle<Image>> {
-        self.projectile_sprites.get(weapon_id)
-    }
-
     pub fn fallback_color(&self, id: &str) -> Color {
         self.fallback_colors
             .get(id)

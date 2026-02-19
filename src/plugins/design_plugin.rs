@@ -12,7 +12,6 @@ use crate::game::parts::weapon_wheel::{MeleeSpec, RangedSpec, WeaponWheelSpec};
 use crate::game::parts::shaft::ShaftSpec;
 use crate::game::parts::chassis::ChassisSpec;
 use crate::game::parts::trait_screw::TraitScrewSpec;
-use crate::game::parts::Build;
 use crate::game::stats::base::BaseStats;
 use crate::game::stats::types::{MetersPerSec, PartSlot, Radius, SpinHp, WeaponKind};
 use crate::plugins::storage_plugin::TokioRuntime;
@@ -23,7 +22,6 @@ use crate::storage::sqlite_repo::SqliteRepo;
 const COLOR_BG: Color = Color::srgba(0.08, 0.08, 0.12, 1.0);
 const COLOR_BTN: Color = Color::srgba(0.18, 0.20, 0.28, 1.0);
 const COLOR_BTN_HOVER: Color = Color::srgba(0.28, 0.32, 0.42, 1.0);
-const COLOR_BTN_PRESS: Color = Color::srgba(0.12, 0.14, 0.20, 1.0);
 const COLOR_TEXT: Color = Color::WHITE;
 const COLOR_TEXT_DIM: Color = Color::srgba(0.5, 0.5, 0.5, 1.0);
 const COLOR_ACCENT: Color = Color::srgba(0.2, 0.7, 1.0, 1.0);
@@ -31,8 +29,6 @@ const COLOR_CARD: Color = Color::srgba(0.12, 0.14, 0.20, 1.0);
 const COLOR_CARD_SELECTED: Color = Color::srgba(0.15, 0.35, 0.60, 1.0);
 const COLOR_INPUT_BG: Color = Color::srgba(0.10, 0.10, 0.16, 1.0);
 const COLOR_INPUT_FOCUS: Color = Color::srgba(0.15, 0.15, 0.25, 1.0);
-const COLOR_DANGER: Color = Color::srgba(0.8, 0.2, 0.2, 1.0);
-const COLOR_SUCCESS: Color = Color::srgba(0.2, 0.7, 0.3, 1.0);
 
 // ── Plugin ──────────────────────────────────────────────────────────
 

@@ -108,7 +108,6 @@ const COLOR_BG: Color = Color::srgba(0.08, 0.08, 0.12, 1.0);
 const COLOR_BTN: Color = Color::srgba(0.18, 0.20, 0.28, 1.0);
 const COLOR_BTN_HOVER: Color = Color::srgba(0.28, 0.32, 0.42, 1.0);
 const COLOR_BTN_PRESS: Color = Color::srgba(0.12, 0.14, 0.20, 1.0);
-const COLOR_BTN_DISABLED: Color = Color::srgba(0.14, 0.14, 0.18, 1.0);
 const COLOR_SELECTED: Color = Color::srgba(0.15, 0.45, 0.75, 1.0);
 const COLOR_SELECTED_HOVER: Color = Color::srgba(0.20, 0.55, 0.85, 1.0);
 const COLOR_TEXT: Color = Color::WHITE;

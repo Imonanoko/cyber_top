@@ -59,7 +59,6 @@ pub fn wall_reflection(
                         dst: entity,
                         amount: wall_dmg,
                         kind: crate::game::stats::types::DamageKind::Wall,
-                        tags: vec!["wall_hit".into()],
                     });
                 }
 

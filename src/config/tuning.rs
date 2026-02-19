@@ -47,7 +47,7 @@ impl Default for Tuning {
             spin_drain_on_wall_hit: 0.5,
             spin_drain_on_top_hit: 1.0,
             collision_damage_k: 0.5,
-            wall_damage_k: 10.0,
+            wall_damage_k: 0.3,
             size_damage_k: 0.0,
             size_radius_ref: 1.0,
             max_speed: 30.0,

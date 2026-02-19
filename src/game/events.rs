@@ -19,17 +19,10 @@ pub enum GameEvent {
         dst: Entity,
         amount: f32,
         kind: DamageKind,
-        tags: Vec<String>,
     },
     ApplyControl {
-        src: Option<Entity>,
         dst: Entity,
         control: ControlEffect,
-    },
-    ApplyStatus {
-        src: Option<Entity>,
-        dst: Entity,
-        status: StatusEffectData,
     },
     SpawnProjectile {
         src: Entity,
@@ -41,29 +34,7 @@ pub enum GameEvent {
         lifetime: f32,
         weapon_id: String,
     },
-    SpawnObstacle {
-        src: Option<Entity>,
-        position: Vec2,
-        radius: f32,
-        ttl: f32,
-        behavior: super::stats::types::CollisionBehavior,
-    },
     DespawnEntity {
         entity: Entity,
     },
-}
-
-/// Data for a status effect instance.
-#[derive(Debug, Clone)]
-pub struct StatusEffectData {
-    pub kind: StatusEffectKind,
-    pub duration: f32,
-    pub magnitude: f32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum StatusEffectKind {
-    DamageOverTime,
-    SpeedBuff,
-    SpeedDebuff,
 }
