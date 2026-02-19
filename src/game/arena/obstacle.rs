@@ -37,35 +37,6 @@ pub fn static_obstacle_bounce(
     }
 }
 
-/// Spawn obstacle entities from SpawnObstacle events.
-pub fn spawn_obstacles(
-    mut commands: Commands,
-    mut events: MessageReader<GameEvent>,
-    time: Res<Time>,
-) {
-    for event in events.read() {
-        if let GameEvent::SpawnObstacle {
-            src,
-            position,
-            radius,
-            ttl,
-            behavior,
-        } = event
-        {
-            let expires_at = time.elapsed_secs_f64() + *ttl as f64;
-
-            commands.spawn((
-                ObstacleMarker,
-                Transform::from_translation(Vec3::new(position.x, position.y, 0.0)),
-                CollisionRadius(*radius),
-                ObstacleOwner(*src),
-                ObstacleBehavior(*behavior),
-                ExpiresAt(expires_at),
-            ));
-        }
-    }
-}
-
 /// Spawn projectile entities from SpawnProjectile events (with visible mesh or sprite).
 pub fn spawn_projectiles(
     mut commands: Commands,

@@ -12,15 +12,6 @@ pub enum TraitHookKind {
     OnFireProjectile,
 }
 
-/// A passive effect or event hook provided by a trait screw.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum TraitEffect {
-    /// Flat stat modifier.
-    Passive(TraitPassive),
-    /// Event hook (processed in HookProcessSet).
-    Hook(TraitHookKind),
-}
-
 /// Passive stat changes from a trait screw.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TraitPassive {

@@ -14,7 +14,6 @@ use crate::storage::sqlite_repo::SqliteRepo;
 const COLOR_BG: Color = Color::srgba(0.08, 0.08, 0.12, 1.0);
 const COLOR_BTN: Color = Color::srgba(0.18, 0.20, 0.28, 1.0);
 const COLOR_BTN_HOVER: Color = Color::srgba(0.28, 0.32, 0.42, 1.0);
-const COLOR_BTN_PRESS: Color = Color::srgba(0.12, 0.14, 0.20, 1.0);
 const COLOR_TEXT: Color = Color::WHITE;
 const COLOR_TEXT_DIM: Color = Color::srgba(0.5, 0.5, 0.5, 1.0);
 const COLOR_ACCENT: Color = Color::srgba(0.2, 0.7, 1.0, 1.0);

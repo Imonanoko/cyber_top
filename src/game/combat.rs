@@ -20,14 +20,12 @@ pub fn generate_collision_damage(
             dst: event.b,
             amount: damage,
             kind: DamageKind::Collision,
-            tags: vec!["collision".into()],
         });
         out_events.write(GameEvent::DealDamage {
             src: Some(event.b),
             dst: event.a,
             amount: damage,
             kind: DamageKind::Collision,
-            tags: vec!["collision".into()],
         });
     }
 }
@@ -43,7 +41,6 @@ pub fn apply_damage_events(
             dst,
             amount,
             kind: _,
-            tags: _,
         } = event
         {
             let mut amount = *amount;
@@ -79,7 +76,7 @@ pub fn apply_control_events(
     mut tops: Query<(&mut ControlState, &TopEffectiveStats), With<Top>>,
 ) {
     for event in events.read() {
-        if let GameEvent::ApplyControl { src: _, dst, control } = event {
+        if let GameEvent::ApplyControl { dst, control } = event {
             if let Ok((mut ctrl_state, stats)) = tops.get_mut(*dst) {
                 ctrl_state.apply_control(*control, stats.0.control_multiplier);
             }
@@ -296,12 +293,10 @@ pub fn detect_melee_hits(
                 dst: tgt_entity,
                 amount: damage,
                 kind: DamageKind::Melee,
-                tags: vec![],
             });
 
             if let Some(control) = melee.hit_control {
                 events.write(GameEvent::ApplyControl {
-                    src: Some(atk_entity),
                     dst: tgt_entity,
                     control,
                 });

@@ -38,15 +38,6 @@ pub enum MapItem {
 }
 
 impl MapItem {
-    pub fn display_name(self) -> &'static str {
-        match self {
-            Self::Obstacle => "Obstacle",
-            Self::GravityDevice => "Gravity",
-            Self::SpeedBoost => "Speed Boost",
-            Self::DamageBoost => "Dmg Boost",
-        }
-    }
-
     pub fn color(self) -> bevy::prelude::Color {
         match self {
             Self::Obstacle => bevy::prelude::Color::srgba(0.5, 0.5, 0.5, 1.0),

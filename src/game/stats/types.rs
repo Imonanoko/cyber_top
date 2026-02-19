@@ -10,26 +10,12 @@ use serde::{Deserialize, Serialize};
 pub struct SpinHp(pub f32);
 
 impl SpinHp {
-    pub fn new(v: f32) -> Self {
-        debug_assert!(v.is_finite(), "SpinHp must be finite");
-        Self(v.max(0.0))
-    }
-
-    pub fn add_clamped(self, delta: f32, max: f32) -> Self {
-        let v = (self.0 + delta).clamp(0.0, max);
-        debug_assert!(v.is_finite());
-        Self(v)
-    }
-
     pub fn sub_clamped(self, delta: f32) -> Self {
         let v = (self.0 - delta).max(0.0);
         debug_assert!(v.is_finite());
         Self(v)
     }
 
-    pub fn is_alive(self) -> bool {
-        self.0 > 0.0
-    }
 }
 
 /// Radius in world units.
@@ -100,16 +86,6 @@ impl AngleRad {
 
     pub fn advance(self, delta: f32) -> Self {
         Self::new(self.0 + delta)
-    }
-}
-
-/// Discrete tick counter (u64, checked arithmetic).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Hash)]
-pub struct Tick(pub u64);
-
-impl Tick {
-    pub fn next(self) -> Self {
-        Self(self.0.checked_add(1).expect("tick overflow"))
     }
 }
 

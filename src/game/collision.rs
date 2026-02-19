@@ -68,7 +68,6 @@ pub fn detect_collisions(
                             dst: *entity,
                             amount: tuning.obstacle_damage,
                             kind: DamageKind::Obstacle,
-                            tags: vec!["obstacle_hit".into()],
                         });
                     }
                     _ => {}
@@ -97,7 +96,6 @@ pub fn detect_collisions(
                     dst: *top_entity,
                     amount: proj_dmg.0,
                     kind: DamageKind::Projectile,
-                    tags: vec![],
                 });
                 events.write(GameEvent::DespawnEntity {
                     entity: proj_entity,

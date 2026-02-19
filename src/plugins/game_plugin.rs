@@ -72,7 +72,6 @@ impl Plugin for GamePlugin {
                 physics::integrate_projectiles,
                 physics::spin_drain,
                 physics::tick_control_state,
-                physics::tick_status_effects,
                 physics::tick_melee_trackers,
                 circle::wall_reflection,
                 obstacle::static_obstacle_bounce,
@@ -112,7 +111,6 @@ impl Plugin for GamePlugin {
                 combat::apply_damage_events,
                 combat::apply_control_events,
                 combat::resolve_top_collisions,
-                obstacle::spawn_obstacles,
                 obstacle::spawn_projectiles,
             )
                 .chain()
@@ -370,7 +368,7 @@ fn setup_arena(
                         ObstacleMarker,
                         CollisionRadius(cell_radius),
                         ObstacleBehavior(CollisionBehavior::DamageOnHit),
-                        ObstacleOwner(None),
+                        ObstacleOwner,
                         Sprite {
                             image: asset_server.load("obstacles/obstacle.png"),
                             custom_size: Some(Vec2::splat(crate::game::map::GRID_CELL_SIZE)),
@@ -386,8 +384,6 @@ fn setup_arena(
                     commands.spawn((
                         InGame,
                         GravityDevice {
-                            last_pulse: 0.0,
-                            interval: 0.0,
                             radius: effect_radius,
                         },
                         CollisionRadius(cell_radius),
@@ -479,7 +475,6 @@ fn setup_arena(
         TopEffectiveStats(p1_effective.clone()),
         TopBuild(p1_build.clone()),
         ControlState::default(),
-        StatusEffects::default(),
         (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
         SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
         DamageBoostActive { multiplier: 1.0 },
@@ -529,7 +524,6 @@ fn setup_arena(
         TopEffectiveStats(p2_effective),
         TopBuild(p2_build.clone()),
         ControlState::default(),
-        StatusEffects::default(),
         (LaunchAim { angle: PI, confirmed: false }, MeleeHitTracker::default(), combat::RangedFireTimer::default()),
         SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
         DamageBoostActive { multiplier: 1.0 },

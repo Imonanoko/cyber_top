@@ -72,14 +72,6 @@ pub fn tick_control_state(tuning: Res<Tuning>, mut query: Query<&mut ControlStat
     }
 }
 
-/// Tick status effects.
-pub fn tick_status_effects(tuning: Res<Tuning>, mut query: Query<&mut StatusEffects, With<Top>>) {
-    let dt = tuning.dt;
-    for mut effects in &mut query {
-        effects.tick(dt);
-    }
-}
-
 /// Tick melee hit trackers.
 pub fn tick_melee_trackers(tuning: Res<Tuning>, mut query: Query<&mut MeleeHitTracker>) {
     let dt = tuning.dt;

@@ -1,10 +1,8 @@
 use bevy::prelude::*;
-use sha2::{Digest, Sha256};
 use sqlx::sqlite::{SqlitePool, SqlitePoolOptions};
 use std::path::PathBuf;
 
 use crate::game::parts::Build;
-use crate::game::stats::effective::EffectiveStats;
 
 /// SQLite-backed repository (Bevy Resource).
 #[derive(Resource)]
@@ -30,10 +28,6 @@ impl SqliteRepo {
         Ok(Self { pool })
     }
 
-    pub fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
     pub async fn save_build_async(&self, build: &Build) -> Result<(), sqlx::Error> {
         let weapon_id = &build.weapon.id;
         let shaft_id = &build.shaft.id;
@@ -56,86 +50,6 @@ impl SqliteRepo {
         .await?;
 
         Ok(())
-    }
-
-    pub async fn load_build_async(&self, id: &str) -> Result<Option<Build>, sqlx::Error> {
-        let row: Option<(String, String, String, String, String, String, String)> = sqlx::query_as(
-            r#"SELECT id, top_id, weapon_id, shaft_id, chassis_id, screw_id, COALESCE(note, '')
-               FROM builds WHERE id = ?"#,
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.map(
-            |(id, top_id, _weapon_id, _shaft_id, _chassis_id, _screw_id, note): (String, String, String, String, String, String, String)| {
-                // For v0, return default build with correct IDs
-                // top_id is used to look up BaseStats from registry (future)
-                let mut top = crate::game::stats::base::BaseStats::default();
-                top.id = top_id;
-                Build {
-                    id,
-                    top,
-                    note: if note.is_empty() {
-                        None
-                    } else {
-                        Some(note)
-                    },
-                    ..Default::default()
-                }
-            },
-        ))
-    }
-
-    pub async fn save_effective_cache_async(
-        &self,
-        build_id: &str,
-        stats: &EffectiveStats,
-        balance_version: u32,
-    ) -> Result<(), sqlx::Error> {
-        let stats_json = serde_json::to_string(stats).unwrap_or_default();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs() as i64;
-
-        let mut hasher = Sha256::new();
-        hasher.update(stats_json.as_bytes());
-        let hash = hex::encode(hasher.finalize());
-
-        sqlx::query(
-            r#"INSERT OR REPLACE INTO effective_cache (build_id, effective_stats_json, computed_at, balance_version, hash)
-               VALUES (?, ?, ?, ?, ?)"#,
-        )
-        .bind(build_id)
-        .bind(&stats_json)
-        .bind(now)
-        .bind(balance_version as i64)
-        .bind(&hash)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    pub async fn load_effective_cache_async(
-        &self,
-        build_id: &str,
-        balance_version: u32,
-    ) -> Result<Option<EffectiveStats>, sqlx::Error> {
-        let row: Option<(String, i64)> = sqlx::query_as(
-            r#"SELECT effective_stats_json, balance_version FROM effective_cache WHERE build_id = ?"#,
-        )
-        .bind(build_id)
-        .fetch_optional(&self.pool)
-        .await?;
-
-        Ok(row.and_then(|(json, ver)| {
-            if ver as u32 != balance_version {
-                return None;
-            }
-            serde_json::from_str(&json).ok()
-        }))
     }
 
     // ── Part CRUD (async) ──────────────────────────────────────────────
