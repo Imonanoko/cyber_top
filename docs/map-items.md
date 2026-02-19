@@ -2,6 +2,7 @@
 
 > Each item placed in the Map Design editor appears in battle as a physical entity.
 > All items are tagged `InGame` and cleaned up automatically when the battle ends.
+> Sprites live in `assets/obstacles/` (64×64 RGBA PNG, regenerated via `python3 gen_assets.py`).
 
 ---
 
@@ -16,14 +17,16 @@
 
 ## Item Types
 
-### Obstacle (Gray)
+### Obstacle (Gray X icon)
 
 **Purpose**: Static wall that blocks and damages tops on contact.
 
 | Property | Value |
 |----------|-------|
-| Visual | 0.5 × 0.5 gray square |
-| Collision radius | 0.25 world units (exact cell boundary) |
+| Sprite | `assets/obstacles/obstacle.png` — gray X on dark background |
+| Visual size | 0.5 × 0.5 world units (one grid cell) |
+| Collision radius | 0.25 wu (half cell — exact cell boundary) |
+| Editor stamp | 1 × 1 cell |
 | Bounce | Elastic reflection: `v' = v − 2(v·n̂)n̂` |
 | Damage on hit | `tuning.obstacle_damage` (default 2.0 spin HP) |
 | Persistence | Permanent for the duration of the battle |
@@ -34,16 +37,18 @@
 
 ---
 
-### Gravity Device (Purple)
+### Gravity Device (Purple rings icon)
 
 **Purpose**: Continuously steers tops toward itself while in range.
 
 | Property | Value |
 |----------|-------|
-| Visual | Circle with radius 2.0 (semi-transparent purple) |
-| Detection radius | 2.0 world units from center |
-| Steer strength | 3.0 (fraction of direction blended per second) |
+| Sprite | `assets/obstacles/gravity_device.png` — purple concentric rings |
+| Visual size | 6.0 × 6.0 wu (diameter of effect radius) |
+| Detection radius | 3.0 wu from device center |
+| Steer strength | 3.0 (direction blended per second) |
 | Speed preserved | Yes — only direction is altered, not magnitude |
+| Editor stamp | 1 × 1 cell |
 | Persistence | Permanent |
 
 **Behavior**: Each FixedUpdate tick, for every top within `device.radius + top_radius`:
@@ -56,45 +61,53 @@ The effect is a smooth continuous pull; tops orbit the device if their speed is 
 
 ---
 
-### Speed Boost Zone (Green)
+### Speed Boost Zone (Green lightning bolt icon)
 
 **Purpose**: Temporarily increases a top's effective movement speed.
 
 | Property | Value |
 |----------|-------|
-| Visual | Circle with radius 1.0 (semi-transparent green) |
-| Detection radius | 1.0 world units (threshold = top_radius + 1.0 ≈ 2.3 units) |
-| Speed multiplier | 1.5× (50% faster) |
-| Duration | 3.0 seconds after last touching the zone |
+| Sprite | `assets/obstacles/speed_boost.png` — yellow-green lightning bolt |
+| Visual size | 0.5 × 0.5 wu per tile |
+| Collision radius | 0.25 wu per tile (half cell) |
+| Detection threshold | `top_radius + 0.25 ≈ 1.55 wu` from tile center |
+| Editor stamp | **2 × 2 cells** (4 tiles placed per click) |
+| Speed multiplier | 1.5× |
+| Duration | 3.0 seconds after last contact with any tile |
 | Component affected | `SpeedBoostEffect.multiplier` on the top |
 
-**Behavior**: `speed_boost_system` (first in PhysicsSet) checks overlap each tick. While overlapping, sets `SpeedBoostEffect { multiplier: 1.5, expires_at: now + 3.0 }` directly on the top. `integrate_physics` then uses `eff_vel = vel × multiplier` for position integration. The raw `Velocity` component is unchanged; only the position delta (and visual spin) are scaled.
+**Behavior**: `speed_boost_system` (first in PhysicsSet) checks overlap each tick. While overlapping, sets `SpeedBoostEffect { multiplier: 1.5, expires_at: now + 3.0 }` directly on the top. `integrate_physics` then uses `eff_vel = vel × multiplier` for position integration. The raw `Velocity` component is unchanged; only the position delta (and visual spin rate) are scaled.
 
-After 3 seconds without re-entering a zone, `speed_boost_tick` resets `multiplier` to 1.0.
+After 3 seconds without re-entering a tile, `speed_boost_tick` resets `multiplier` to 1.0.
 
-**HUD**: `spd:` shows effective speed (`vel.length() × multiplier`). Jumps from ~10.2 to ~15.3 while boosted.
+**Coverage**: To create a larger zone, place more 2×2 stamps side-by-side. Each tile independently triggers the boost; best (highest) multiplier across all overlapping tiles wins.
+
+**HUD**: `spd:` shows effective speed (`vel.length() × multiplier`) — jumps ~50% while boosted.
 
 ---
 
-### Damage Boost Zone (Red)
+### Damage Boost Zone (Red sword icon)
 
-**Purpose**: Increases the outgoing weapon damage of any top touching the zone.
+**Purpose**: Increases outgoing weapon damage for any top touching the zone.
 
 | Property | Value |
 |----------|-------|
-| Visual | Circle with radius 1.0 (semi-transparent red) |
-| Detection radius | 1.0 world units |
+| Sprite | `assets/obstacles/damage_boost.png` — white sword on dark red |
+| Visual size | 0.5 × 0.5 wu per tile |
+| Collision radius | 0.25 wu per tile (half cell) |
+| Detection threshold | `top_radius + 0.25 ≈ 1.55 wu` from tile center |
+| Editor stamp | **2 × 2 cells** (4 tiles placed per click) |
 | Damage multiplier | 1.5× outgoing damage |
-| Duration | Active only while overlapping (no persistence) |
+| Duration | Active only while overlapping any tile (no persistence after leaving) |
 | Component affected | `DamageBoostActive.multiplier` on the top |
 
 **Behavior**: `damage_boost_system` (PhysicsSet) checks overlap each tick. While overlapping, sets `DamageBoostActive { multiplier: 1.5 }`. When not overlapping, resets to 1.0. Applied in `apply_damage_events` (EventApplySet):
 ```
-final_damage = base × damage_out_mult × dmg_boost.multiplier × damage_in_mult
+final_damage = base_damage × damage_out_mult × dmg_boost.multiplier × damage_in_mult
 ```
-Affects all damage types the top deals: collision, melee, ranged projectiles.
+Affects all damage types the top deals: collision, melee, and ranged projectiles.
 
-**HUD**: `wpn:` shows effective weapon damage (`base × out_mult × boost_mult`). Jumps ~50% while in zone.
+**HUD**: `wpn:` shows effective weapon damage (`base × out_mult × boost_mult`) — jumps ~50% while in zone.
 
 ---
 
@@ -103,21 +116,22 @@ Affects all damage types the top deals: collision, melee, ranged projectiles.
 Zone systems run at the start of `PhysicsSet` (before `integrate_physics`), so multipliers are applied within the same FixedUpdate tick as the movement they affect:
 
 ```
-speed_boost_system       ← sets SpeedBoostEffect.multiplier
-speed_boost_tick         ← resets expired effects
-damage_boost_system      ← sets DamageBoostActive.multiplier
-gravity_device_system    ← steers velocity toward device
-integrate_physics        ← applies eff_vel = vel × speed_mult
+speed_boost_system       ← sets SpeedBoostEffect.multiplier (logs "SpeedBoost ACTIVATED" on entry)
+speed_boost_tick         ← resets expired effects to multiplier 1.0
+damage_boost_system      ← sets DamageBoostActive.multiplier (logs "DamageBoost ACTIVATED" on entry)
+gravity_device_system    ← blends velocity direction toward device
+integrate_physics        ← applies eff_vel = vel × speed_mult (logs speed values once/sec when active)
 ...
 ```
 
-`DamageBoostActive` is applied later in `EventApplySet → apply_damage_events`.
+`DamageBoostActive` is applied later in `EventApplySet → apply_damage_events` (logs boosted vs base damage per hit).
 
 ---
 
 ## Design Notes
 
-- All zone items spawn with `CollisionRadius(1.0)` — the same value used for detection overlap.
-- Obstacles use `CollisionRadius(0.25)` matching the 0.5-unit cell size exactly.
-- Both `SpeedBoostEffect` and `DamageBoostActive` are **always-present** components on tops (initialized with `multiplier: 1.0` at spawn). Zone systems mutate them directly — no `Commands.insert/remove` deferred overhead.
-- Multiple overlapping zones of the same type: best (highest) multiplier wins.
+- All map items use `CollisionRadius(cell_radius)` = `GRID_CELL_SIZE × 0.5` = **0.25 wu**.
+- Zone coverage scales by tile count: stamp more 2×2 blocks to make a larger area.
+- Both `SpeedBoostEffect` and `DamageBoostActive` are **always-present** components on tops (initialized `multiplier: 1.0` at spawn). Zone systems mutate them directly — no `Commands.insert/remove` deferred overhead.
+- Multiple overlapping tiles of the same type: best (highest) multiplier wins.
+- Sprite regeneration: edit `gen_assets.py` and run `python3 gen_assets.py` — no pip install needed.

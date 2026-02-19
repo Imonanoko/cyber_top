@@ -354,9 +354,6 @@ fn setup_arena(
         let mut gravity_count = 0u32;
         let mut speed_count = 0u32;
         let mut damage_count = 0u32;
-        // Zone tiles use a 1.0-unit radius circle so they are clearly visible
-        // and easy to overlap (detection threshold = top_radius + 1.0 ≈ 2.3 units).
-        let zone_radius = 1.0_f32;
 
         for placement in &map.placements {
             let wx = placement.grid_x as f32 * crate::game::map::GRID_CELL_SIZE;
