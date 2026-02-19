@@ -326,6 +326,7 @@ fn setup_arena(
     registry: Res<PartRegistry>,
     selection: Res<GameSelection>,
     game_assets: Res<GameAssets>,
+    asset_server: Res<AssetServer>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
@@ -366,10 +367,6 @@ fn setup_arena(
             match placement.item {
                 crate::game::map::MapItem::Obstacle => {
                     obs_count += 1;
-                    let obs_mesh = meshes.add(Rectangle::new(
-                        crate::game::map::GRID_CELL_SIZE,
-                        crate::game::map::GRID_CELL_SIZE,
-                    ));
                     commands.spawn((
                         InGame,
                         StaticObstacle,
@@ -377,16 +374,18 @@ fn setup_arena(
                         CollisionRadius(cell_radius),
                         ObstacleBehavior(CollisionBehavior::DamageOnHit),
                         ObstacleOwner(None),
-                        Mesh2d(obs_mesh),
-                        MeshMaterial2d(materials.add(Color::srgba(0.5, 0.5, 0.5, 0.8))),
+                        Sprite {
+                            image: asset_server.load("obstacles/obstacle.png"),
+                            custom_size: Some(Vec2::splat(crate::game::map::GRID_CELL_SIZE)),
+                            ..default()
+                        },
                         Transform::from_translation(pos),
                     ));
                 }
                 crate::game::map::MapItem::GravityDevice => {
                     gravity_count += 1;
-                    // Visual: show effect radius as a semi-transparent circle
-                    let effect_radius = 2.0;
-                    let grav_mesh = meshes.add(Circle::new(effect_radius));
+                    // Effect radius 3.0; visual circle sized to match
+                    let effect_radius = 3.0_f32;
                     commands.spawn((
                         InGame,
                         GravityDevice {
@@ -395,35 +394,43 @@ fn setup_arena(
                             radius: effect_radius,
                         },
                         CollisionRadius(cell_radius),
-                        Mesh2d(grav_mesh),
-                        MeshMaterial2d(materials.add(Color::srgba(0.6, 0.2, 0.8, 0.25))),
+                        Sprite {
+                            image: asset_server.load("obstacles/gravity_device.png"),
+                            custom_size: Some(Vec2::splat(effect_radius * 2.0)),
+                            ..default()
+                        },
                         Transform::from_translation(pos),
                     ));
                 }
                 crate::game::map::MapItem::SpeedBoost => {
                     speed_count += 1;
-                    let boost_mesh = meshes.add(Circle::new(zone_radius));
+                    // Detection radius = half a grid cell; place 2×2 in editor for area coverage
                     commands.spawn((
                         InGame,
                         SpeedBoostZone {
                             multiplier: 1.5,
                             duration: 3.0,
                         },
-                        CollisionRadius(zone_radius),
-                        Mesh2d(boost_mesh),
-                        MeshMaterial2d(materials.add(Color::srgba(0.2, 0.8, 0.3, 0.4))),
+                        CollisionRadius(cell_radius),
+                        Sprite {
+                            image: asset_server.load("obstacles/speed_boost.png"),
+                            custom_size: Some(Vec2::splat(crate::game::map::GRID_CELL_SIZE)),
+                            ..default()
+                        },
                         Transform::from_translation(pos.with_z(-0.5)),
                     ));
                 }
                 crate::game::map::MapItem::DamageBoost => {
                     damage_count += 1;
-                    let dmg_mesh = meshes.add(Circle::new(zone_radius));
                     commands.spawn((
                         InGame,
                         DamageBoostZone { multiplier: 1.5 },
-                        CollisionRadius(zone_radius),
-                        Mesh2d(dmg_mesh),
-                        MeshMaterial2d(materials.add(Color::srgba(0.8, 0.2, 0.2, 0.4))),
+                        CollisionRadius(cell_radius),
+                        Sprite {
+                            image: asset_server.load("obstacles/damage_boost.png"),
+                            custom_size: Some(Vec2::splat(crate::game::map::GRID_CELL_SIZE)),
+                            ..default()
+                        },
                         Transform::from_translation(pos.with_z(-0.5)),
                     ));
                 }

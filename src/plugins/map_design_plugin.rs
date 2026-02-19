@@ -858,21 +858,36 @@ fn map_editor_system(
                     continue;
                 }
 
-                // Remove any existing placement at this cell
-                state
-                    .current_spec
-                    .placements
-                    .retain(|p| p.grid_x != cell.grid_x || p.grid_y != cell.grid_y);
-
-                // Place new item (unless erasing)
                 if let Some(item) = state.selected_tool.to_map_item() {
-                    state.current_spec.placements.push(MapPlacement {
-                        grid_x: cell.grid_x,
-                        grid_y: cell.grid_y,
-                        item,
-                    });
+                    // SpeedBoost and DamageBoost stamp a 2×2 block;
+                    // other tools place a single cell.
+                    let offsets: &[(i32, i32)] = match item {
+                        MapItem::SpeedBoost | MapItem::DamageBoost => {
+                            &[(0, 0), (1, 0), (0, -1), (1, -1)]
+                        }
+                        _ => &[(0, 0)],
+                    };
+
+                    for &(dx, dy) in offsets {
+                        let nx = cell.grid_x + dx;
+                        let ny = cell.grid_y + dy;
+                        // Remove whatever was at each target cell
+                        state.current_spec.placements.retain(|p| p.grid_x != nx || p.grid_y != ny);
+                        // Only place if the cell is inside the arena
+                        if is_valid_placement(nx, ny, state.current_spec.arena_radius) {
+                            state.current_spec.placements.push(MapPlacement {
+                                grid_x: nx,
+                                grid_y: ny,
+                                item,
+                            });
+                        }
+                    }
                     *bg = BackgroundColor(item.color());
                 } else {
+                    // Erase: remove just the clicked cell
+                    state.current_spec.placements.retain(|p| {
+                        p.grid_x != cell.grid_x || p.grid_y != cell.grid_y
+                    });
                     *bg = BackgroundColor(COLOR_GRID_EMPTY);
                 }
             }
