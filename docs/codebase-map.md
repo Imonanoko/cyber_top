@@ -21,7 +21,7 @@ src/
 │   ├── hooks.rs                     # Trait screw hook pipeline (v0: no-op)
 │   ├── map.rs                       # MapSpec, MapPlacement, MapItem, GRID_CELL_SIZE
 │   ├── parts/
-│   │   ├── mod.rs                   # Build struct (resolved top+weapon+parts)
+│   │   ├── mod.rs                   # Build struct (resolved wheel+weapon+parts)
 │   │   ├── registry.rs              # PartRegistry, BuildRef, resolve_build(), maps HashMap
 │   │   ├── weapon_wheel.rs          # WeaponWheelSpec, MeleeSpec, RangedSpec
 │   │   ├── shaft.rs                 # ShaftSpec (stability, spin_efficiency)
@@ -29,7 +29,7 @@ src/
 │   │   └── trait_screw.rs           # TraitScrewSpec, TraitPassive, hooks
 │   ├── stats/
 │   │   ├── types.rs                 # Newtypes (SpinHp, Radius, etc.), enums (WeaponKind, PartSlot, ControlEffect)
-│   │   ├── base.rs                  # BaseStats (immutable top params)
+│   │   ├── base.rs                  # BaseStats (immutable wheel params)
 │   │   ├── effective.rs             # EffectiveStats (computed from base + mods)
 │   │   └── modifier.rs             # StatModifier, ModifierSet, stacking logic
 │   ├── status/

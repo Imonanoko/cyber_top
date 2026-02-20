@@ -3,7 +3,7 @@
 ## 概覽
 
 Cyber Top 是一款用 **Rust + Bevy 0.18** 開發的 2D 戰鬥陀螺遊戲。
-兩顆陀螺被發射進圓形競技場，發射後所有移動皆由物理驅動（碰撞、牆壁反彈）。最後旋轉 HP 大於 0 的陀螺獲勝。
+兩個 TOP 被發射進圓形競技場，發射後所有移動皆由物理驅動（碰撞、牆壁反彈）。最後旋轉 HP 大於 0 的 TOP 獲勝。
 
 ---
 
@@ -19,7 +19,7 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 ### GamePhase 狀態說明
 
 **主遊戲流程：**
-- **MainMenu**：標題畫面，含「開始遊戲」、「設計地圖」、「設計陀螺」按鈕
+- **MainMenu**：標題畫面，含「開始遊戲」、「設計地圖」、「設計輪盤」按鈕
 - **Selection**：選擇模式（PvP / PvAI）、地圖、P1/P2 配裝
 - **PickMap**：獨立地圖選擇畫面，顯示卡片預覽
 - **PickTop**：配裝選擇畫面。透過 `PickingFor` Resource 區分 P1/P2
@@ -30,7 +30,7 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 **設計工坊流程：**
 - **DesignHub**：入口 — 建立零件、管理零件
 - **ManageParts**：列出所有自訂零件與配裝，可編輯 / 刪除
-- **EditTop**：陀螺本體編輯（旋轉 HP、半徑、速度、加速度、控制減免）
+- **EditTop**：輪盤編輯（旋轉 HP、半徑、速度、加速度、控制減免）
 - **EditWeapon / EditShaft / EditChassis / EditScrew**：零件編輯器（文字輸入、圖片指定、武器類型選擇）
 - **AssembleBuild**：組合配裝（選擇每個槽位的零件）
 - **PickDesignPart**：組合配裝時選擇特定槽位零件
@@ -89,7 +89,7 @@ SystemSets 嚴格鏈式順序：
 | Resource | 說明 |
 |----------|------|
 | `Tuning` | 所有可調參數，從 `tuning.ron` 載入，F5 熱重載 |
-| `PartRegistry` | 資料驅動的零件預設（陀螺、武器、軸、底盤、螺絲、配裝、地圖） |
+| `PartRegistry` | 資料驅動的零件預設（輪盤、武器、軸、底盤、螺絲、配裝、地圖） |
 | `GameSelection` | 當前模式、地圖、P1/P2 配裝 ID |
 | `PickingFor` | 選擇畫面中是哪位玩家（1 或 2） |
 | `ProjectileAssets` | 投射物網格/材質 + 每個武器的精靈圖 handle |
@@ -103,13 +103,13 @@ SystemSets 嚴格鏈式順序：
 
 ## 配裝系統
 
-玩家選擇**配裝**（非個別零件）。一套配裝 = 陀螺本體 + 武器 + 軸 + 底盤 + 特性螺絲。
+玩家選擇**配裝**（非個別零件）。一套配裝 = 輪盤 + 武器 + 軸 + 底盤 + 特性螺絲。
 
 ### BuildRef（記憶體中）
 `PartRegistry.builds` 存放含零件 ID 的 `BuildRef`。在競技場設置時透過 `resolve_build()` 解析為完整 `Build` struct。
 
 ### 預設配裝
-| Build ID | 名稱 | 陀螺 | 武器 |
+| Build ID | 名稱 | 輪盤 | 武器 |
 |----------|------|------|------|
 | `default_blade` | Standard Blade Top | default_top | basic_blade（近戰） |
 | `default_blaster` | Standard Blaster Top | default_top | basic_blaster（遠程） |
@@ -136,7 +136,7 @@ SystemSets 嚴格鏈式順序：
 
 ## 數值架構（3 層）
 
-1. `BaseStats` — 每個陀螺不可變的基底參數
+1. `BaseStats` — 每個輪盤不可變的基底參數
 2. `ModifierSet` — 來自零件 + 被動特性 + 狀態的修改值
 3. `EffectiveStats` — Base + 修改值套用後的結果；快取，在裝備變更時重新計算
 
@@ -145,7 +145,7 @@ SystemSets 嚴格鏈式順序：
 ## 資產系統
 
 ### 慣例式載入
-- 陀螺 ID `"default_top"` → `assets/tops/default_top.png`
+- 輪盤 ID `"default_top"` → `assets/tops/default_top.png`
 - 武器 ID `"basic_blade"` → `assets/weapons/basic_blade.png`
 - 遠程武器 `"basic_blaster"` → `assets/projectiles/basic_blaster_projectile.png`
 - 可透過 `BaseStats` / `WeaponWheelSpec` 中的選擇性 `sprite_path` 欄位覆蓋
@@ -158,7 +158,7 @@ SystemSets 嚴格鏈式順序：
 
 | 資產類型 | 建議尺寸 | 備注 |
 |---------|---------|------|
-| 陀螺本體 | 128×128 px | 朝右（+X方向）。在遊戲中縮放至世界半徑 |
+| 輪盤 | 128×128 px | 朝右（+X方向）。在遊戲中縮放至世界半徑 |
 | 武器（近戰） | 128×32 px | 寬度 = 刀刃長度，高度 = 厚度 |
 | 武器（遠程） | 64×32 px | 同上 |
 | 投射物 | 32×32 px | 透過 Transform.scale 縮放 |

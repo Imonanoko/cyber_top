@@ -16,13 +16,13 @@ pub enum PartSlot {
 }
 ```
 
-注意：陀螺本體**不是** PartSlot — 它是獨立概念（`BaseStats`）。
+注意：輪盤**不是** PartSlot — 它是獨立概念（`BaseStats`）。
 
 ---
 
 ## 各槽位規格
 
-### 陀螺本體 — `BaseStats`（`game/stats/base.rs`）
+### 輪盤 — `BaseStats`（`game/stats/base.rs`）
 
 ```rust
 pub struct BaseStats {
@@ -194,7 +194,7 @@ pub struct PartRegistry {
 
 | ID | 類型 |
 |----|------|
-| `default_top` | 陀螺本體 |
+| `default_top` | 輪盤 |
 | `basic_blade` | 武器（近戰） |
 | `basic_blaster` | 武器（遠程） |
 | `standard_shaft` | 軸 |
@@ -213,7 +213,7 @@ pub struct PartRegistry {
 ## 數值架構（3 層）
 
 ### 第 1 層：BaseStats
-每個陀螺本體的不可變參數。儲存在 `PartRegistry.tops`。
+每個輪盤的不可變參數。儲存在 `PartRegistry.tops`。
 
 ### 第 2 層：ModifierSet（`game/stats/modifier.rs`）
 
@@ -286,7 +286,7 @@ repo.delete_map_sync(rt, id) -> Result<(), String>
 
 | 零件類型 | 資產路徑 |
 |---------|---------|
-| 陀螺本體 | `assets/tops/{id}.png` |
+| 輪盤 | `assets/tops/{id}.png` |
 | 武器 | `assets/weapons/{id}.png` |
 | 投射物 | `assets/projectiles/{id}_projectile.png` |
 | 軸 | `assets/shafts/{id}.png` |

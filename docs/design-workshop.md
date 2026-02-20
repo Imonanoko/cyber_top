@@ -1,6 +1,6 @@
 # Design Workshop — `src/plugins/design_plugin.rs`
 
-> Everything about the Design Top / Workshop feature lives in one file.
+> Everything about the Design Wheel / Workshop feature lives in one file.
 > This doc is the full reference for that file's structure.
 
 ---
@@ -10,7 +10,7 @@
 ```
 MainMenu
   └─ DesignHub
-       ├─ EditTop        (create / edit top)
+       ├─ EditTop        (create / edit wheel)
        ├─ EditWeapon     (create / edit weapon)
        ├─ EditShaft      (create / edit shaft)
        ├─ EditChassis    (create / edit chassis)
@@ -44,7 +44,7 @@ MainMenu
 ```rust
 pub struct DesignState {
     pub editing_part_id: Option<String>,      // Part being edited (pre-generated for new)
-    pub picking_slot: Option<PartSlot>,        // Slot being picked in PickDesignPart (None = top body)
+    pub picking_slot: Option<PartSlot>,        // Slot being picked in PickDesignPart (None = wheel)
     pub current_build_id: Option<String>,      // Build being edited (None = new build)
     pub current_build_top_id: String,
     pub current_build_weapon_id: String,
@@ -74,7 +74,7 @@ pub struct DesignState {
 | `TextInputDisplay` | Struct | All editors | Child Text entity showing input value |
 | `HubButton` | Enum | DesignHub | `NewTop` (label: "New Wheel"), `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
-| `EditorButton` | Enum | Top/Shaft/Chassis/Screw editors | `Save`, `Cancel`, `SetImage` |
+| `EditorButton` | Enum | Wheel/Shaft/Chassis/Screw editors | `Save`, `Cancel`, `SetImage` |
 | `WeaponEditorButton` | Enum | Weapon editor | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
 | `KindSelector` | Struct | Weapon editor | `current: WeaponKind`, `just_pressed: bool` |
 | `KindSelectorLabel` | Struct | Weapon editor | Display text for kind button |
@@ -115,7 +115,7 @@ pub struct DesignState {
 
 | Function | Section | Card Function |
 |----------|---------|---------------|
-| `spawn_section_with_tops` | "Tops" | `spawn_top_card` |
+| `spawn_section_with_tops` | "Wheels" | `spawn_top_card` |
 | `spawn_section_with_parts` | "Weapons" | `spawn_part_card` |
 | `spawn_section_with_shafts` | "Shafts" | `spawn_part_card` |
 | `spawn_section_with_chassis` | "Chassis" | `spawn_part_card` |

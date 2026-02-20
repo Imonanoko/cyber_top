@@ -16,13 +16,13 @@ pub enum PartSlot {
 }
 ```
 
-Note: Top body is **not** a PartSlot — it's a separate concept (`BaseStats`).
+Note: Wheel is **not** a PartSlot — it's a separate concept (`BaseStats`).
 
 ---
 
 ## Part Specs (per slot)
 
-### Top Body — `BaseStats` (`game/stats/base.rs`)
+### Wheel — `BaseStats` (`game/stats/base.rs`)
 
 ```rust
 pub struct BaseStats {
@@ -194,7 +194,7 @@ pub struct PartRegistry {
 
 | ID | Type |
 |----|------|
-| `default_top` | Top body |
+| `default_top` | Wheel |
 | `basic_blade` | Weapon (Melee) |
 | `basic_blaster` | Weapon (Ranged) |
 | `standard_shaft` | Shaft |
@@ -213,7 +213,7 @@ pub struct PartRegistry {
 ## Stats Architecture (3-Layer)
 
 ### Layer 1: BaseStats
-Immutable parameters per top body. Stored in `PartRegistry.tops`.
+Immutable parameters per wheel. Stored in `PartRegistry.tops`.
 
 ### Layer 2: ModifierSet (`game/stats/modifier.rs`)
 
@@ -292,7 +292,7 @@ Part ID determines file path automatically:
 
 | Part Type | Asset Path |
 |-----------|-----------|
-| Top | `assets/tops/{id}.png` |
+| Wheel | `assets/tops/{id}.png` |
 | Weapon | `assets/weapons/{id}.png` |
 | Projectile | `assets/projectiles/{id}_projectile.png` |
 | Shaft | `assets/shafts/{id}.png` |

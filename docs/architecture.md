@@ -3,7 +3,7 @@
 ## Overview
 
 Cyber Top is a 2D spinning-tops battle game built with **Rust + Bevy 0.18**.
-Two tops are launched into a circular arena; physics (collisions, wall reflections) drives all movement after launch. The last top with spin HP > 0 wins.
+Two TOPs are launched into a circular arena; physics (collisions, wall reflections) drives all movement after launch. The last TOP with spin HP > 0 wins.
 
 ---
 
@@ -19,10 +19,10 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 ### GamePhase States
 
 **Game flow:**
-- **MainMenu**: Title screen with Start Game, Design Map, Design Top
+- **MainMenu**: Title screen with Start Game, Design Map, Design Wheel
 - **Selection**: Hub screen — choose mode (PvP / PvAI), map, P1/P2 builds
 - **PickMap**: Dedicated map picker with card-based preview UI
-- **PickTop**: Build picker — select a complete build (top + weapon + parts). Reused for P1 and P2 via `PickingFor` resource.
+- **PickTop**: Build picker — select a complete TOP (wheel + weapon + parts). Reused for P1 and P2 via `PickingFor` resource.
 - **Aiming**: Player rotates launch direction (Arrow keys + Space). P2: A/D + Enter. AI auto-confirms random angle.
 - **Battle**: Physics-driven combat. FixedUpdate systems run.
 - **GameOver**: Winner overlay. ESC/Enter returns to MainMenu.
@@ -30,9 +30,9 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 **Design workshop flow:**
 - **DesignHub**: Entry point — Create Part, Manage Parts
 - **ManageParts**: List all custom parts and builds, edit/delete
-- **EditTop**: Top body editor (spin HP, radius, speed, accel, control reduction)
+- **EditTop**: Wheel editor (spin HP, radius, speed, accel, control reduction)
 - **EditWeapon / EditShaft / EditChassis / EditScrew**: Part editors with text inputs, image assignment, kind selector (weapon)
-- **AssembleBuild**: Assemble a build by picking parts for each slot (top, weapon, shaft, chassis, screw)
+- **AssembleBuild**: Assemble a build by picking parts for each slot (wheel, weapon, shaft, chassis, screw)
 - **PickDesignPart**: Pick a part for a specific slot during build assembly
 
 ### Game Modes
@@ -89,7 +89,7 @@ SystemSets in strict chain order:
 | Resource | Description |
 |----------|-------------|
 | `Tuning` | All tunable params, loaded from `tuning.ron`, F5 hot-reload |
-| `PartRegistry` | Data-driven part presets (tops, weapons, shafts, builds, etc.) + `BuildRef` entries |
+| `PartRegistry` | Data-driven part presets (wheels, weapons, shafts, builds, etc.) + `BuildRef` entries |
 | `GameSelection` | Current mode, map, P1/P2 build IDs |
 | `PickingFor` | Which player (1 or 2) is in the picker screen |
 | `ProjectileAssets` | Projectile mesh/material + per-weapon sprite handles |
@@ -102,17 +102,17 @@ SystemSets in strict chain order:
 
 ## Build System
 
-Players select **builds** (not individual tops + weapons). A build is a complete loadout:
+Players select **builds** (not individual wheels + weapons). A build is a complete loadout:
 
 ```
-Build = Top + Weapon + Shaft + Chassis + Screw
+Build = Wheel + Weapon + Shaft + Chassis + Screw
 ```
 
 ### BuildRef (in-memory)
 `PartRegistry.builds` stores `BuildRef` entries with part IDs. Resolved to full `Build` structs at arena setup time via `resolve_build()`.
 
 ### Default Builds
-| Build ID | Name | Top | Weapon |
+| Build ID | Name | Wheel | Weapon |
 |----------|------|-----|--------|
 | `default_blade` | Standard Blade Top | default_top | basic_blade (Melee) |
 | `default_blaster` | Standard Blaster Top | default_top | basic_blaster (Ranged) |
@@ -140,7 +140,7 @@ Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. 
 
 ## Stats Architecture (3-Layer)
 
-1. `BaseStats` — immutable base parameters per top
+1. `BaseStats` — immutable base parameters per wheel
 2. `ModifierSet` — from parts + passive traits + status
 3. `EffectiveStats` — Base + modifiers applied; cached, recomputed on loadout change
 
@@ -149,7 +149,7 @@ Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. 
 ## Asset System
 
 ### Convention-Based Loading
-- Top ID `"default_top"` -> `assets/tops/default_top.png`
+- Wheel ID `"default_top"` -> `assets/tops/default_top.png`
 - Weapon ID `"basic_blade"` -> `assets/weapons/basic_blade.png`
 - Ranged weapon `"basic_blaster"` -> `assets/projectiles/basic_blaster_projectile.png`
 - Override via optional `sprite_path` / `projectile_sprite_path` fields in `BaseStats` / `WeaponWheelSpec`
@@ -157,7 +157,7 @@ Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. 
 ### Fallback Strategy
 - **Missing image** -> procedural mesh with fallback color (game renders identically to pre-sprite era)
 - **Missing audio** -> silence (Bevy handles missing audio gracefully)
-- No code changes needed to add new tops — just drop `{id}.png` in `assets/tops/`
+- No code changes needed to add new wheels — just drop `{id}.png` in `assets/tops/`
 
 ### Rendering
 - Game entities: `Sprite { image, custom_size }` (world-unit sized), else `Mesh2d` + `MeshMaterial2d`

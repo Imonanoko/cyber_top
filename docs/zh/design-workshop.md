@@ -1,6 +1,6 @@
 # 設計工坊 — `src/plugins/design_plugin.rs`
 
-> 設計陀螺 / 工坊功能的所有程式碼都在同一個檔案中。
+> 設計輪盤 / 工坊功能的所有程式碼都在同一個檔案中。
 > 本文件是該檔案結構的完整參考。
 
 ---
@@ -10,7 +10,7 @@
 ```
 MainMenu
   └─ DesignHub
-       ├─ EditTop        （建立 / 編輯陀螺本體）
+       ├─ EditTop        （建立 / 編輯輪盤）
        ├─ EditWeapon     （建立 / 編輯武器）
        ├─ EditShaft      （建立 / 編輯軸）
        ├─ EditChassis    （建立 / 編輯底盤）
@@ -44,7 +44,7 @@ MainMenu
 ```rust
 pub struct DesignState {
     pub editing_part_id: Option<String>,      // 正在編輯的零件（新增時預先生成）
-    pub picking_slot: Option<PartSlot>,        // 在 PickDesignPart 中選擇的槽位（None = 陀螺本體）
+    pub picking_slot: Option<PartSlot>,        // 在 PickDesignPart 中選擇的槽位（None = 輪盤）
     pub current_build_id: Option<String>,      // 正在編輯的配裝（None = 新配裝）
     pub current_build_top_id: String,
     pub current_build_weapon_id: String,
@@ -74,7 +74,7 @@ pub struct DesignState {
 | `TextInputDisplay` | Struct | 所有編輯器 | 顯示輸入值的子 Text 實體 |
 | `HubButton` | Enum | DesignHub | `NewTop`（顯示為 "New Wheel"）, `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
-| `EditorButton` | Enum | 陀螺/軸/底盤/螺絲編輯器 | `Save`, `Cancel`, `SetImage` |
+| `EditorButton` | Enum | 輪盤/軸/底盤/螺絲編輯器 | `Save`, `Cancel`, `SetImage` |
 | `WeaponEditorButton` | Enum | 武器編輯器 | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
 | `KindSelector` | Struct | 武器編輯器 | `current: WeaponKind`，`just_pressed: bool` |
 | `KindSelectorLabel` | Struct | 武器編輯器 | 類型按鈕的顯示文字 |

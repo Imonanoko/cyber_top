@@ -21,7 +21,7 @@ src/
 │   ├── hooks.rs                     # 特性螺絲鉤子管線（v0：空操作）
 │   ├── map.rs                       # MapSpec、MapPlacement、MapItem、GRID_CELL_SIZE
 │   ├── parts/
-│   │   ├── mod.rs                   # Build struct（已解析的陀螺+武器+零件）
+│   │   ├── mod.rs                   # Build struct（已解析的輪盤+武器+零件）
 │   │   ├── registry.rs              # PartRegistry、BuildRef、resolve_build()、maps HashMap
 │   │   ├── weapon_wheel.rs          # WeaponWheelSpec、MeleeSpec、RangedSpec
 │   │   ├── shaft.rs                 # ShaftSpec（穩定性、旋轉效率）
@@ -29,7 +29,7 @@ src/
 │   │   └── trait_screw.rs           # TraitScrewSpec、TraitPassive、鉤子
 │   ├── stats/
 │   │   ├── types.rs                 # 新型別（SpinHp、Radius 等）、列舉（WeaponKind、PartSlot、ControlEffect）
-│   │   ├── base.rs                  # BaseStats（不可變陀螺參數）
+│   │   ├── base.rs                  # BaseStats（不可變輪盤參數）
 │   │   ├── effective.rs             # EffectiveStats（Base + 修改值計算結果）
 │   │   └── modifier.rs              # StatModifier、ModifierSet、疊加邏輯
 │   ├── status/
