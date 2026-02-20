@@ -16,7 +16,7 @@ use crate::game::stats::types::WeaponKind;
 pub struct BuildRef {
     pub id: String,
     pub name: String,
-    pub top_id: String,
+    pub wheel_id: String,
     pub weapon_id: String,
     pub shaft_id: String,
     pub chassis_id: String,
@@ -28,7 +28,7 @@ pub struct BuildRef {
 /// Future: load from DB tables (`tops`, `parts`).
 #[derive(Resource, Default)]
 pub struct PartRegistry {
-    pub tops: HashMap<String, BaseStats>,
+    pub wheels: HashMap<String, BaseStats>,
     pub weapons: HashMap<String, WeaponWheelSpec>,
     pub shafts: HashMap<String, ShaftSpec>,
     pub chassis: HashMap<String, ChassisSpec>,
@@ -42,8 +42,8 @@ impl PartRegistry {
     pub fn with_defaults() -> Self {
         let mut reg = Self::default();
 
-        // ── Tops ─────────────────────────────────────────────────
-        reg.tops.insert("default_top".into(), BaseStats::default());
+        // ── Wheels ───────────────────────────────────────────────
+        reg.wheels.insert("default_top".into(), BaseStats::default());
 
         // ── Weapons ────────────────────────────────────────────────
         reg.weapons.insert(
@@ -90,7 +90,7 @@ impl PartRegistry {
             BuildRef {
                 id: "default_blade".into(),
                 name: "Standard Blade Top".into(),
-                top_id: "default_top".into(),
+                wheel_id: "default_top".into(),
                 weapon_id: "basic_blade".into(),
                 shaft_id: "standard_shaft".into(),
                 chassis_id: "standard_chassis".into(),
@@ -102,7 +102,7 @@ impl PartRegistry {
             BuildRef {
                 id: "default_blaster".into(),
                 name: "Standard Blaster Top".into(),
-                top_id: "default_top".into(),
+                wheel_id: "default_top".into(),
                 weapon_id: "basic_blaster".into(),
                 shaft_id: "standard_shaft".into(),
                 chassis_id: "standard_chassis".into(),
@@ -126,7 +126,7 @@ impl PartRegistry {
         if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "top") {
             for (id, _kind, json) in parts {
                 if let Ok(spec) = serde_json::from_str::<BaseStats>(&json) {
-                    self.tops.insert(id, spec);
+                    self.wheels.insert(id, spec);
                 }
             }
         }
@@ -167,11 +167,11 @@ impl PartRegistry {
         rt: &tokio::runtime::Runtime,
     ) {
         if let Ok(rows) = repo.load_all_builds_sync(rt) {
-            for (id, top_id, weapon_id, shaft_id, chassis_id, screw_id, note) in rows {
+            for (id, wheel_id, weapon_id, shaft_id, chassis_id, screw_id, note) in rows {
                 let name = if note.is_empty() { id.clone() } else { note };
                 self.builds.insert(
                     id.clone(),
-                    BuildRef { id, name, top_id, weapon_id, shaft_id, chassis_id, screw_id },
+                    BuildRef { id, name, wheel_id, weapon_id, shaft_id, chassis_id, screw_id },
                 );
             }
         }
@@ -206,13 +206,13 @@ impl PartRegistry {
         &self,
         build_id: &str,
         build_name: &str,
-        top_id: &str,
+        wheel_id: &str,
         weapon_id: &str,
         shaft_id: &str,
         chassis_id: &str,
         screw_id: &str,
     ) -> Option<Build> {
-        let top = self.tops.get(top_id)?.clone();
+        let wheel = self.wheels.get(wheel_id)?.clone();
         let weapon = self.weapons.get(weapon_id)?.clone();
         let shaft = self.shafts.get(shaft_id)?.clone();
         let chassis = self.chassis.get(chassis_id)?.clone();
@@ -221,7 +221,7 @@ impl PartRegistry {
         Some(Build {
             id: build_id.into(),
             name: build_name.into(),
-            top,
+            wheel,
             weapon,
             shaft,
             chassis,

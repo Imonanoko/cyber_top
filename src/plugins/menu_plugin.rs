@@ -54,7 +54,7 @@ struct GameOverOverlay;
 enum MenuButton {
     StartGame,
     DesignMap,
-    DesignTop,
+    DesignWheel,
 }
 
 #[derive(Component)]
@@ -146,11 +146,11 @@ impl Plugin for MenuPlugin {
         app.add_systems(Update, map_picker_system.run_if(in_state(GamePhase::PickMap)));
 
         // Top picker
-        app.add_systems(OnEnter(GamePhase::PickTop), spawn_top_picker);
+        app.add_systems(OnEnter(GamePhase::PickTop), spawn_build_picker);
         app.add_systems(OnExit(GamePhase::PickTop), despawn::<PickerRoot>);
         app.add_systems(
             Update,
-            (top_picker_system, update_top_picker_visuals)
+            (build_picker_system, update_build_picker_visuals)
                 .chain()
                 .run_if(in_state(GamePhase::PickTop)),
         );
@@ -198,7 +198,7 @@ fn spawn_main_menu(mut commands: Commands) {
             ));
             spawn_btn(parent, "Start Game", MenuButton::StartGame, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
             spawn_btn(parent, "Design Map", MenuButton::DesignMap, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
-            spawn_btn(parent, "Design Top", MenuButton::DesignTop, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
+            spawn_btn(parent, "Design Wheel", MenuButton::DesignWheel, COLOR_BTN, COLOR_TEXT, 360.0, 56.0);
         });
 }
 
@@ -216,7 +216,7 @@ fn menu_button_system(
                 Interaction::Hovered => *bg = BackgroundColor(COLOR_BTN_HOVER),
                 Interaction::None => *bg = BackgroundColor(COLOR_BTN),
             },
-            MenuButton::DesignTop => match *interaction {
+            MenuButton::DesignWheel => match *interaction {
                 Interaction::Pressed => {
                     *bg = BackgroundColor(COLOR_BTN_PRESS);
                     next_state.set(GamePhase::DesignHub);
@@ -588,7 +588,7 @@ fn map_picker_system(
 // BUILD PICKER
 // ═══════════════════════════════════════════════════════════════════════
 
-fn spawn_top_picker(
+fn spawn_build_picker(
     mut commands: Commands,
     selection: Res<GameSelection>,
     picking: Res<PickingFor>,
@@ -641,7 +641,7 @@ fn spawn_top_picker(
                 for id in build_ids {
                     let build_ref = &registry.builds[id];
                     let top_sprite = game_assets.as_ref()
-                        .and_then(|a| a.top_sprites.get(build_ref.top_id.as_str()).cloned());
+                        .and_then(|a| a.wheel_sprites.get(build_ref.wheel_id.as_str()).cloned());
                     let weapon_name = registry.weapons.get(&build_ref.weapon_id)
                         .map(|w| format!("{:?}", w.kind))
                         .unwrap_or_default();
@@ -725,7 +725,7 @@ fn spawn_build_card(
     });
 }
 
-fn top_picker_system(
+fn build_picker_system(
     mut q: Query<(&Interaction, &PickerButton), Changed<Interaction>>,
     mut selection: ResMut<GameSelection>,
     picking: Res<PickingFor>,
@@ -752,7 +752,7 @@ fn top_picker_system(
     }
 }
 
-fn update_top_picker_visuals(
+fn update_build_picker_visuals(
     selection: Res<GameSelection>,
     picking: Res<PickingFor>,
     mut q: Query<(&PickerButton, &Interaction, &mut BackgroundColor), With<PickerHighlight>>,

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 /// Loaded at startup, read-only during gameplay.
 #[derive(Resource)]
 pub struct GameAssets {
-    /// Top ID → sprite handle. Missing entries → fallback to procedural mesh.
-    pub top_sprites: HashMap<String, Handle<Image>>,
+    /// Wheel ID → sprite handle. Missing entries → fallback to procedural mesh.
+    pub wheel_sprites: HashMap<String, Handle<Image>>,
     /// Weapon ID → sprite handle.
     pub weapon_sprites: HashMap<String, Handle<Image>>,
     /// Weapon ID → projectile sprite handle (for ranged weapons).
@@ -30,8 +30,8 @@ pub struct SfxHandles {
 }
 
 impl GameAssets {
-    pub fn top_sprite(&self, top_id: &str) -> Option<&Handle<Image>> {
-        self.top_sprites.get(top_id)
+    pub fn wheel_sprite(&self, wheel_id: &str) -> Option<&Handle<Image>> {
+        self.wheel_sprites.get(wheel_id)
     }
 
     pub fn weapon_sprite(&self, weapon_id: &str) -> Option<&Handle<Image>> {

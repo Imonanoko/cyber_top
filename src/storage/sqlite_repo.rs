@@ -40,7 +40,7 @@ impl SqliteRepo {
                VALUES (?, ?, ?, ?, ?, ?, ?)"#,
         )
         .bind(&build.id)
-        .bind(&build.top.id)
+        .bind(&build.wheel.id)
         .bind(weapon_id)
         .bind(shaft_id)
         .bind(chassis_id)

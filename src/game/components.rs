@@ -35,7 +35,7 @@ pub enum GamePhase {
     GameOver,
     // ── Design flow ──
     DesignHub,
-    EditTop,
+    EditWheel,
     EditWeapon,
     EditShaft,
     EditChassis,

@@ -195,16 +195,16 @@ fn load_game_assets(
     asset_server: Res<AssetServer>,
     registry: Res<PartRegistry>,
 ) {
-    let mut top_sprites = HashMap::new();
+    let mut wheel_sprites = HashMap::new();
     let mut weapon_sprites = HashMap::new();
     let mut projectile_sprites = HashMap::new();
     let mut fallback_colors = HashMap::new();
 
-    // Load top sprites
-    for (id, stats) in &registry.tops {
+    // Load wheel sprites
+    for (id, stats) in &registry.wheels {
         let path = stats.sprite_path.clone()
             .unwrap_or_else(|| format!("tops/{}.png", id));
-        top_sprites.insert(id.clone(), asset_server.load(&path));
+        wheel_sprites.insert(id.clone(), asset_server.load(&path));
     }
 
     // Load weapon sprites
@@ -239,7 +239,7 @@ fn load_game_assets(
     let aim_arrow = asset_server.load("ui/aim_arrow.png");
 
     commands.insert_resource(GameAssets {
-        top_sprites,
+        wheel_sprites,
         weapon_sprites,
         projectile_sprites,
         fallback_colors,
@@ -250,16 +250,16 @@ fn load_game_assets(
 
 // ── Visual helpers ───────────────────────────────────────────────────
 
-/// Insert top visual components: sprite if available, else procedural mesh.
-fn insert_top_visual(
+/// Insert wheel visual components: sprite if available, else procedural mesh.
+fn insert_wheel_visual(
     entity: &mut EntityCommands,
-    top_id: &str,
+    wheel_id: &str,
     radius: f32,
     game_assets: &GameAssets,
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
-    if let Some(sprite_handle) = game_assets.top_sprite(top_id) {
+    if let Some(sprite_handle) = game_assets.wheel_sprite(wheel_id) {
         let diameter = radius * 2.0;
         entity.insert(Sprite {
             image: sprite_handle.clone(),
@@ -268,7 +268,7 @@ fn insert_top_visual(
         });
     } else {
         let mesh = meshes.add(Circle::new(radius));
-        let color = game_assets.fallback_color(top_id);
+        let color = game_assets.fallback_color(wheel_id);
         entity.insert((
             Mesh2d(mesh),
             MeshMaterial2d(materials.add(color)),
@@ -456,16 +456,16 @@ fn setup_arena(
         .resolve_build(
             &p1_ref.id,
             &p1_ref.name,
-            &p1_ref.top_id,
+            &p1_ref.wheel_id,
             &p1_ref.weapon_id,
             &p1_ref.shaft_id,
             &p1_ref.chassis_id,
             &p1_ref.screw_id,
         )
         .expect("P1 build parts not found in registry");
-    let p1_top_id = p1_ref.top_id.clone();
+    let p1_wheel_id = p1_ref.wheel_id.clone();
     let p1_mods = p1_build.combined_modifiers();
-    let p1_effective = p1_mods.compute_effective(&p1_build.top, &tuning);
+    let p1_effective = p1_mods.compute_effective(&p1_build.wheel, &tuning);
     let p1_radius = p1_effective.radius.0;
 
     let mut p1_entity = commands.spawn((
@@ -483,7 +483,7 @@ fn setup_arena(
         SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
         DamageBoostActive { multiplier: 1.0 },
     ));
-    insert_top_visual(&mut p1_entity, &p1_top_id, p1_radius, &game_assets, &mut meshes, &mut materials);
+    insert_wheel_visual(&mut p1_entity, &p1_wheel_id, p1_radius, &game_assets, &mut meshes, &mut materials);
     p1_entity.with_children(|parent| {
         spawn_weapon_visual(parent, &p1_build.weapon, p1_radius, &game_assets, &mut meshes, &mut materials);
     });
@@ -509,16 +509,16 @@ fn setup_arena(
         .resolve_build(
             &p2_ref.id,
             &p2_ref.name,
-            &p2_ref.top_id,
+            &p2_ref.wheel_id,
             &p2_ref.weapon_id,
             &p2_ref.shaft_id,
             &p2_ref.chassis_id,
             &p2_ref.screw_id,
         )
         .expect("P2 build parts not found in registry");
-    let p2_top_id = p2_ref.top_id.clone();
+    let p2_wheel_id = p2_ref.wheel_id.clone();
     let p2_mods = p2_build.combined_modifiers();
-    let p2_effective = p2_mods.compute_effective(&p2_build.top, &tuning);
+    let p2_effective = p2_mods.compute_effective(&p2_build.wheel, &tuning);
     let p2_radius = p2_effective.radius.0;
 
     let mut p2_entity = commands.spawn((
@@ -541,7 +541,7 @@ fn setup_arena(
         GameMode::PvP => { p2_entity.insert(Player2Controlled); }
     }
 
-    insert_top_visual(&mut p2_entity, &p2_top_id, p2_radius, &game_assets, &mut meshes, &mut materials);
+    insert_wheel_visual(&mut p2_entity, &p2_wheel_id, p2_radius, &game_assets, &mut meshes, &mut materials);
     p2_entity.with_children(|parent| {
         spawn_weapon_visual(parent, &p2_build.weapon, p2_radius, &game_assets, &mut meshes, &mut materials);
     });

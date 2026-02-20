@@ -48,10 +48,10 @@ impl Plugin for DesignPlugin {
         app.add_systems(OnExit(GamePhase::ManageParts), despawn::<ScreenRoot>);
         app.add_systems(Update, manage_parts_system.run_if(in_state(GamePhase::ManageParts)));
 
-        // EditTop
-        app.add_systems(OnEnter(GamePhase::EditTop), spawn_top_editor);
-        app.add_systems(OnExit(GamePhase::EditTop), despawn::<ScreenRoot>);
-        app.add_systems(Update, (text_input_system, top_editor_system).chain().run_if(in_state(GamePhase::EditTop)));
+        // EditWheel
+        app.add_systems(OnEnter(GamePhase::EditWheel), spawn_wheel_editor);
+        app.add_systems(OnExit(GamePhase::EditWheel), despawn::<ScreenRoot>);
+        app.add_systems(Update, (text_input_system, wheel_editor_system).chain().run_if(in_state(GamePhase::EditWheel)));
 
         // EditShaft
         app.add_systems(OnEnter(GamePhase::EditShaft), spawn_shaft_editor);
@@ -128,7 +128,7 @@ pub struct DesignState {
     pub picking_slot: Option<PartSlot>,
     /// Build being assembled
     pub current_build_id: Option<String>,
-    pub current_build_top_id: String,
+    pub current_build_wheel_id: String,
     pub current_build_weapon_id: String,
     pub current_build_shaft_id: String,
     pub current_build_chassis_id: String,
@@ -253,7 +253,7 @@ fn is_builtin(id: &str) -> bool {
 fn builds_using_part(registry: &PartRegistry, part_id: &str) -> Vec<String> {
     registry.builds.values()
         .filter(|b| {
-            b.top_id == part_id
+            b.wheel_id == part_id
                 || b.weapon_id == part_id
                 || b.shaft_id == part_id
                 || b.chassis_id == part_id
@@ -445,7 +445,7 @@ fn spawn_card_frame(
 
 #[derive(Component)]
 enum HubButton {
-    NewTop,
+    NewWheel,
     NewWeapon,
     NewShaft,
     NewChassis,
@@ -494,7 +494,7 @@ fn spawn_design_hub(mut commands: Commands, mut state: ResMut<DesignState>) {
             row_gap: Val::Px(12.0),
             ..default()
         }).with_children(|grid| {
-            spawn_button(grid, "New Wheel", HubButton::NewTop);
+            spawn_button(grid, "New Wheel", HubButton::NewWheel);
             spawn_button(grid, "New Weapon", HubButton::NewWeapon);
             spawn_button(grid, "New Shaft", HubButton::NewShaft);
             spawn_button(grid, "New Chassis", HubButton::NewChassis);
@@ -527,9 +527,9 @@ fn design_hub_system(
         if *interaction == Interaction::Pressed {
             state.return_to_manage = false;
             match button {
-                HubButton::NewTop => {
+                HubButton::NewWheel => {
                     state.editing_part_id = Some(gen_custom_id());
-                    next_state.set(GamePhase::EditTop);
+                    next_state.set(GamePhase::EditWheel);
                 }
                 HubButton::NewWeapon => {
                     state.editing_part_id = Some(gen_custom_id());
@@ -570,8 +570,8 @@ fn design_hub_system(
 
 #[derive(Component)]
 enum ManageButton {
-    EditTop(String),
-    DeleteTop(String),
+    EditWheel(String),
+    DeleteWheel(String),
     EditPart { slot: PartSlot, id: String },
     DeletePart { slot: PartSlot, id: String },
     EditBuild(String),
@@ -648,7 +648,7 @@ fn spawn_manage_parts(
             }
 
             // ── Tops ──
-            spawn_section_with_tops(root, &registry.tops, &asset_server, &edit_icon, &delete_icon);
+            spawn_section_with_wheels(root, &registry.wheels, &asset_server, &edit_icon, &delete_icon);
 
             // ── Weapons ──
             spawn_section_with_parts(root, "Weapons", &registry.weapons, PartSlot::WeaponWheel, &asset_server, &edit_icon, &delete_icon);
@@ -857,7 +857,7 @@ fn spawn_section_with_builds(
         for id in ids {
             let b = &builds[id];
             let builtin = is_builtin(id);
-            let stats = format!("{} + {}", b.top_id, b.weapon_id);
+            let stats = format!("{} + {}", b.wheel_id, b.weapon_id);
             let id_str: String = id.clone();
             let id_str2: String = id.clone();
             spawn_card_frame(grid, &b.name, &stats, None, COLOR_CARD, 220.0, move |card| {
@@ -883,7 +883,7 @@ fn spawn_section_with_builds(
     });
 }
 
-fn spawn_section_with_tops(
+fn spawn_section_with_wheels(
     root: &mut ChildSpawnerCommands,
     tops: &std::collections::HashMap<String, BaseStats>,
     asset_server: &AssetServer,
@@ -912,12 +912,12 @@ fn spawn_section_with_tops(
             let t = &tops[id];
             let builtin = is_builtin(id);
             let img: Handle<Image> = asset_server.load(format!("tops/{}.png", id));
-            spawn_top_card(grid, id, &t.name, &format!("HP:{:.0} R:{:.2}", t.spin_hp_max.0, t.radius.0), builtin, Some(img), edit_icon.clone(), delete_icon.clone());
+            spawn_wheel_card(grid, id, &t.name, &format!("HP:{:.0} R:{:.2}", t.spin_hp_max.0, t.radius.0), builtin, Some(img), edit_icon.clone(), delete_icon.clone());
         }
     });
 }
 
-fn spawn_top_card(
+fn spawn_wheel_card(
     parent: &mut ChildSpawnerCommands,
     id: &str,
     name: &str,
@@ -937,8 +937,8 @@ fn spawn_top_card(
                 margin: UiRect::top(Val::Px(4.0)),
                 ..default()
             }).with_children(|row| {
-                spawn_icon_button(row, edit_icon, ManageButton::EditTop(id_str));
-                spawn_icon_button(row, delete_icon, ManageButton::DeleteTop(id_str2));
+                spawn_icon_button(row, edit_icon, ManageButton::EditWheel(id_str));
+                spawn_icon_button(row, delete_icon, ManageButton::DeleteWheel(id_str2));
             });
         } else {
             card.spawn((
@@ -1024,12 +1024,12 @@ fn manage_parts_system(
     for (interaction, button, mut bg) in &mut q {
         if *interaction == Interaction::Pressed {
             match button {
-                ManageButton::EditTop(id) => {
+                ManageButton::EditWheel(id) => {
                     state.editing_part_id = Some(id.clone());
                     state.return_to_manage = true;
-                    next_state.set(GamePhase::EditTop);
+                    next_state.set(GamePhase::EditWheel);
                 }
-                ManageButton::DeleteTop(id) => {
+                ManageButton::DeleteWheel(id) => {
                     let used_by = builds_using_part(&registry, id);
                     if !used_by.is_empty() {
                         state.delete_error = Some(format!(
@@ -1040,7 +1040,7 @@ fn manage_parts_system(
                             let _ = repo.delete_part_sync(&rt.0, id);
                         }
                         let _ = std::fs::remove_file(format!("assets/tops/{}.png", id));
-                        registry.tops.remove(id.as_str());
+                        registry.wheels.remove(id.as_str());
                     }
                     next_state.set(GamePhase::ManageParts);
                 }
@@ -1091,7 +1091,7 @@ fn manage_parts_system(
                 }
                 ManageButton::NewBuild => {
                     state.current_build_id = None;
-                    state.current_build_top_id = "default_top".into();
+                    state.current_build_wheel_id = "default_top".into();
                     state.current_build_weapon_id = "basic_blade".into();
                     state.current_build_shaft_id = "standard_shaft".into();
                     state.current_build_chassis_id = "standard_chassis".into();
@@ -1106,7 +1106,7 @@ fn manage_parts_system(
         }
         // Icon buttons: subtle hover. Text buttons: standard hover.
         match button {
-            ManageButton::EditTop(_) | ManageButton::DeleteTop(_) |
+            ManageButton::EditWheel(_) | ManageButton::DeleteWheel(_) |
             ManageButton::EditPart { .. } | ManageButton::DeletePart { .. } |
             ManageButton::EditBuild(_) | ManageButton::DeleteBuild(_) => {
                 match interaction {
@@ -1127,14 +1127,14 @@ fn manage_parts_system(
 #[derive(Component)]
 enum EditorButton { Save, Cancel, SetImage }
 
-fn spawn_top_editor(
+fn spawn_wheel_editor(
     mut commands: Commands,
     state: Res<DesignState>,
     registry: Res<PartRegistry>,
     asset_server: Res<AssetServer>,
 ) {
     let t = state.editing_part_id.as_ref()
-        .and_then(|id| registry.tops.get(id))
+        .and_then(|id| registry.wheels.get(id))
         .cloned()
         .unwrap_or(BaseStats {
             id: String::new(),
@@ -1183,7 +1183,7 @@ fn spawn_top_editor(
     });
 }
 
-fn top_editor_system(
+fn wheel_editor_system(
     mut q: Query<(&Interaction, &EditorButton, &mut BackgroundColor), Changed<Interaction>>,
     inputs: Query<&TextInput>,
     mut next_state: ResMut<NextState<GamePhase>>,
@@ -1212,7 +1212,7 @@ fn top_editor_system(
                         let json = serde_json::to_string(&spec).unwrap_or_default();
                         let _ = repo.save_part_sync(&rt.0, "top", "top", &id, &json);
                     }
-                    registry.tops.insert(id, spec);
+                    registry.wheels.insert(id, spec);
                     next_state.set(if state.return_to_manage { GamePhase::ManageParts } else { GamePhase::DesignHub });
                 }
                 EditorButton::Cancel => {
@@ -1875,7 +1875,7 @@ fn spawn_assemble_build(
     tuning: Res<Tuning>,
     asset_server: Res<AssetServer>,
 ) {
-    let top_name = registry.tops.get(&state.current_build_top_id).map(|t| t.name.as_str()).unwrap_or("?");
+    let top_name = registry.wheels.get(&state.current_build_wheel_id).map(|t| t.name.as_str()).unwrap_or("?");
     let weapon_name = registry.weapons.get(&state.current_build_weapon_id).map(|w| w.name.as_str()).unwrap_or("?");
     let shaft_name = registry.shafts.get(&state.current_build_shaft_id).map(|s| s.name.as_str()).unwrap_or("?");
     let chassis_name = registry.chassis.get(&state.current_build_chassis_id).map(|c| c.name.as_str()).unwrap_or("?");
@@ -1885,14 +1885,14 @@ fn spawn_assemble_build(
     let stats_text = if let Some(build) = registry.resolve_build(
         "preview",
         "",
-        &state.current_build_top_id,
+        &state.current_build_wheel_id,
         &state.current_build_weapon_id,
         &state.current_build_shaft_id,
         &state.current_build_chassis_id,
         &state.current_build_screw_id,
     ) {
         let mods = build.combined_modifiers();
-        let eff = mods.compute_effective(&build.top, &tuning);
+        let eff = mods.compute_effective(&build.wheel, &tuning);
         format!(
             "HP: {:.0}  Radius: {:.2}  Speed: {:.1}\nAccel: {:.1}  Stab: {:.1}  Ctrl: {:.2}",
             eff.spin_hp_max.0, eff.radius.0, eff.move_speed.0,
@@ -1922,7 +1922,7 @@ fn spawn_assemble_build(
         spawn_field_row(root, "Build Name", "Optional note", "build_note", &state.current_build_note);
 
         // Slot cards
-        let top_img: Handle<Image> = asset_server.load(format!("tops/{}.png", state.current_build_top_id));
+        let top_img: Handle<Image> = asset_server.load(format!("tops/{}.png", state.current_build_wheel_id));
         let wpn_img: Handle<Image> = asset_server.load(format!("weapons/{}.png", state.current_build_weapon_id));
         let shaft_img: Handle<Image> = asset_server.load(format!("shafts/{}.png", state.current_build_shaft_id));
         let chassis_img: Handle<Image> = asset_server.load(format!("chassis/{}.png", state.current_build_chassis_id));
@@ -2025,7 +2025,7 @@ fn assemble_build_system(
                     if let Some(build) = registry.resolve_build(
                         &build_id,
                         &display_name,
-                        &state.current_build_top_id,
+                        &state.current_build_wheel_id,
                         &state.current_build_weapon_id,
                         &state.current_build_shaft_id,
                         &state.current_build_chassis_id,
@@ -2040,7 +2040,7 @@ fn assemble_build_system(
                         registry.builds.insert(build_id.clone(), crate::game::parts::registry::BuildRef {
                             id: build_id,
                             name: display_name,
-                            top_id: state.current_build_top_id.clone(),
+                            wheel_id: state.current_build_wheel_id.clone(),
                             weapon_id: state.current_build_weapon_id.clone(),
                             shaft_id: state.current_build_shaft_id.clone(),
                             chassis_id: state.current_build_chassis_id.clone(),
@@ -2110,10 +2110,10 @@ fn spawn_pick_design_part(
         }).with_children(|grid| {
             match slot {
                 None => {
-                    let mut ids: Vec<_> = registry.tops.keys().collect();
+                    let mut ids: Vec<_> = registry.wheels.keys().collect();
                     ids.sort();
                     for id in ids {
-                        let t = &registry.tops[id];
+                        let t = &registry.wheels[id];
                         let img: Handle<Image> = asset_server.load(format!("tops/{}.png", id));
                         spawn_pick_card(grid, id, &t.name, &format!("HP:{:.0} R:{:.2}", t.spin_hp_max.0, t.radius.0), Some(img));
                     }
@@ -2202,7 +2202,7 @@ fn pick_design_part_system(
             match button {
                 PickPartButton::Select(id) => {
                     match &state.picking_slot {
-                        None => state.current_build_top_id = id.clone(),
+                        None => state.current_build_wheel_id = id.clone(),
                         Some(PartSlot::WeaponWheel) => state.current_build_weapon_id = id.clone(),
                         Some(PartSlot::Shaft) => state.current_build_shaft_id = id.clone(),
                         Some(PartSlot::Chassis) => state.current_build_chassis_id = id.clone(),
