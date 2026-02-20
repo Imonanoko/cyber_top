@@ -784,13 +784,16 @@ fn update_top_picker_visuals(
 
 fn spawn_game_over_overlay(
     mut commands: Commands,
-    player: Query<&crate::game::components::SpinHpCurrent, With<crate::game::components::PlayerControlled>>,
+    player: Query<
+        (&crate::game::components::SpinHpCurrent, &crate::game::components::TopBuild),
+        With<crate::game::components::PlayerControlled>,
+    >,
     ai: Query<
-        &crate::game::components::SpinHpCurrent,
+        (&crate::game::components::SpinHpCurrent, &crate::game::components::TopBuild),
         (With<crate::game::components::AiControlled>, Without<crate::game::components::PlayerControlled>),
     >,
     p2: Query<
-        &crate::game::components::SpinHpCurrent,
+        (&crate::game::components::SpinHpCurrent, &crate::game::components::TopBuild),
         (
             With<crate::game::components::Player2Controlled>,
             Without<crate::game::components::PlayerControlled>,
@@ -798,9 +801,17 @@ fn spawn_game_over_overlay(
         ),
     >,
 ) {
-    let player_hp = player.iter().next().map(|s| s.0 .0).unwrap_or(0.0);
-    let opponent_hp = ai.iter().next().or_else(|| p2.iter().next()).map(|s| s.0 .0).unwrap_or(0.0);
-    let winner = if player_hp > opponent_hp { "Player 1 Wins!" } else { "Player 2 Wins!" };
+    let (player_hp, p1_name) = player.iter().next()
+        .map(|(s, b)| (s.0.0, b.0.name.clone()))
+        .unwrap_or((0.0, "Player 1".into()));
+    let (opponent_hp, p2_name) = ai.iter().next().or_else(|| p2.iter().next())
+        .map(|(s, b)| (s.0.0, b.0.name.clone()))
+        .unwrap_or((0.0, "Player 2".into()));
+    let winner = if player_hp > opponent_hp {
+        format!("{} Wins!", p1_name)
+    } else {
+        format!("{} Wins!", p2_name)
+    };
 
     commands
         .spawn((

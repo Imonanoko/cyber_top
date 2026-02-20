@@ -494,7 +494,7 @@ fn spawn_design_hub(mut commands: Commands, mut state: ResMut<DesignState>) {
             row_gap: Val::Px(12.0),
             ..default()
         }).with_children(|grid| {
-            spawn_button(grid, "New Top", HubButton::NewTop);
+            spawn_button(grid, "New Wheel", HubButton::NewTop);
             spawn_button(grid, "New Weapon", HubButton::NewWeapon);
             spawn_button(grid, "New Shaft", HubButton::NewShaft);
             spawn_button(grid, "New Chassis", HubButton::NewChassis);
@@ -1157,7 +1157,7 @@ fn spawn_top_editor(
         ScrollPosition::default(),
         BackgroundColor(COLOR_BG),
     )).with_children(|root| {
-        let title = if state.return_to_manage { "Edit Top" } else { "New Top" };
+        let title = if state.return_to_manage { "Edit Wheel" } else { "New Wheel" };
         spawn_title(root, title);
 
         let img = state.editing_part_id.as_ref().map(|id| asset_server.load(format!("tops/{}.png", id)));
@@ -1884,6 +1884,7 @@ fn spawn_assemble_build(
     // Compute combined stats
     let stats_text = if let Some(build) = registry.resolve_build(
         "preview",
+        "",
         &state.current_build_top_id,
         &state.current_build_weapon_id,
         &state.current_build_shaft_id,
@@ -2019,9 +2020,11 @@ fn assemble_build_system(
                     let note = read_field(&inputs, "build_note");
                     state.current_build_note = note.clone();
                     let build_id = state.current_build_id.clone().unwrap_or_else(gen_custom_id);
+                    let display_name = if note.is_empty() { build_id.clone() } else { note.clone() };
 
                     if let Some(build) = registry.resolve_build(
                         &build_id,
+                        &display_name,
                         &state.current_build_top_id,
                         &state.current_build_weapon_id,
                         &state.current_build_shaft_id,
@@ -2034,7 +2037,6 @@ fn assemble_build_system(
                             let _ = repo.save_build_sync(&rt.0, &build);
                         }
                         // Register build in memory so it's available in the game picker
-                        let display_name = if note.is_empty() { build_id.clone() } else { note };
                         registry.builds.insert(build_id.clone(), crate::game::parts::registry::BuildRef {
                             id: build_id,
                             name: display_name,

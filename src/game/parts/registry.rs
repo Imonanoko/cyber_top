@@ -50,7 +50,7 @@ impl PartRegistry {
             "basic_blade".into(),
             WeaponWheelSpec {
                 id: "basic_blade".into(),
-                name: "Basic Blade".into(),
+                name: "Standard Blade".into(),
                 kind: WeaponKind::Melee,
                 melee: Some(MeleeSpec::default()),
                 ranged: None,
@@ -63,7 +63,7 @@ impl PartRegistry {
             "basic_blaster".into(),
             WeaponWheelSpec {
                 id: "basic_blaster".into(),
-                name: "Basic Blaster".into(),
+                name: "Standard Blaster".into(),
                 kind: WeaponKind::Ranged,
                 melee: None,
                 ranged: Some(RangedSpec::default()),
@@ -89,7 +89,7 @@ impl PartRegistry {
             "default_blade".into(),
             BuildRef {
                 id: "default_blade".into(),
-                name: "Standard Top + Blade".into(),
+                name: "Standard Blade Top".into(),
                 top_id: "default_top".into(),
                 weapon_id: "basic_blade".into(),
                 shaft_id: "standard_shaft".into(),
@@ -101,7 +101,7 @@ impl PartRegistry {
             "default_blaster".into(),
             BuildRef {
                 id: "default_blaster".into(),
-                name: "Standard Top + Blaster".into(),
+                name: "Standard Blaster Top".into(),
                 top_id: "default_top".into(),
                 weapon_id: "basic_blaster".into(),
                 shaft_id: "standard_shaft".into(),
@@ -205,6 +205,7 @@ impl PartRegistry {
     pub fn resolve_build(
         &self,
         build_id: &str,
+        build_name: &str,
         top_id: &str,
         weapon_id: &str,
         shaft_id: &str,
@@ -219,6 +220,7 @@ impl PartRegistry {
 
         Some(Build {
             id: build_id.into(),
+            name: build_name.into(),
             top,
             weapon,
             shaft,

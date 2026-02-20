@@ -74,6 +74,7 @@ fn update_hp_display(
     mut text_query: Query<&mut Text, With<HpText>>,
 ) {
     struct TopInfo {
+        name: String,
         hp: f32,
         eff_speed: f32,
         wpn_dmg: f32,
@@ -90,16 +91,17 @@ fn update_hp_display(
             0.0
         };
         TopInfo {
+            name: build.0.name.clone(),
             hp: hp.0.0,
             eff_speed: vel.0.length() * spd.multiplier,
             wpn_dmg: base_wpn_dmg * stats.0.damage_out_mult.0 * dmg.multiplier,
         }
     };
 
-    let default_info = TopInfo { hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 };
+    let default_info = TopInfo { name: "???".into(), hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 };
 
     let p1 = player_q.iter().next().map(extract)
-        .unwrap_or(TopInfo { hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 });
+        .unwrap_or(TopInfo { name: "???".into(), hp: 0.0, eff_speed: 0.0, wpn_dmg: 0.0 });
     let p2 = ai_q.iter().next()
         .or_else(|| p2_q.iter().next())
         .map(extract)
@@ -107,9 +109,9 @@ fn update_hp_display(
 
     for mut text in &mut text_query {
         **text = format!(
-            "P1  HP:{:.1}  spd:{:.1}  wpn:{:.1}\nP2  HP:{:.1}  spd:{:.1}  wpn:{:.1}",
-            p1.hp, p1.eff_speed, p1.wpn_dmg,
-            p2.hp, p2.eff_speed, p2.wpn_dmg,
+            "{}  HP:{:.1}  spd:{:.1}  wpn:{:.1}\n{}  HP:{:.1}  spd:{:.1}  wpn:{:.1}",
+            p1.name, p1.hp, p1.eff_speed, p1.wpn_dmg,
+            p2.name, p2.hp, p2.eff_speed, p2.wpn_dmg,
         );
     }
 }

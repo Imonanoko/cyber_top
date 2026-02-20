@@ -120,7 +120,7 @@ impl Default for WeaponWheelSpec {
     fn default() -> Self {
         Self {
             id: "default_melee".into(),
-            name: "Basic Blade".into(),
+            name: "Standard Blade".into(),
             kind: WeaponKind::Melee,
             melee: Some(MeleeSpec::default()),
             ranged: None,

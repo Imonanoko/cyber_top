@@ -148,6 +148,7 @@ pub struct BuildRef {
 ```rust
 pub struct Build {
     pub id: String,
+    pub name: String,
     pub top: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
@@ -161,7 +162,7 @@ pub struct Build {
 
 ```
 BuildRef (IDs only)
-  → PartRegistry.resolve_build(build_id, top_id, weapon_id, shaft_id, chassis_id, screw_id)
+  → PartRegistry.resolve_build(build_id, build_name, top_id, weapon_id, shaft_id, chassis_id, screw_id)
   → Build (full specs)
   → Build.combined_modifiers() → ModifierSet
   → ModifierSet.compute_effective(base, tuning) → EffectiveStats
@@ -204,8 +205,8 @@ pub struct PartRegistry {
 
 | ID | Name | Composition |
 |----|------|-------------|
-| `default_blade` | Standard Top + Blade | default_top + basic_blade + standard_* |
-| `default_blaster` | Standard Top + Blaster | default_top + basic_blaster + standard_* |
+| `default_blade` | Standard Blade Top | default_top + basic_blade + standard_* |
+| `default_blaster` | Standard Blaster Top | default_top + basic_blaster + standard_* |
 
 ---
 

@@ -455,6 +455,7 @@ fn setup_arena(
     let p1_build = registry
         .resolve_build(
             &p1_ref.id,
+            &p1_ref.name,
             &p1_ref.top_id,
             &p1_ref.weapon_id,
             &p1_ref.shaft_id,
@@ -507,6 +508,7 @@ fn setup_arena(
     let p2_build = registry
         .resolve_build(
             &p2_ref.id,
+            &p2_ref.name,
             &p2_ref.top_id,
             &p2_ref.weapon_id,
             &p2_ref.shaft_id,

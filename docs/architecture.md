@@ -114,8 +114,8 @@ Build = Top + Weapon + Shaft + Chassis + Screw
 ### Default Builds
 | Build ID | Name | Top | Weapon |
 |----------|------|-----|--------|
-| `default_blade` | Standard Top + Blade | default_top | basic_blade (Melee) |
-| `default_blaster` | Standard Top + Blaster | default_top | basic_blaster (Ranged) |
+| `default_blade` | Standard Blade Top | default_top | basic_blade (Melee) |
+| `default_blaster` | Standard Blaster Top | default_top | basic_blaster (Ranged) |
 
 ### Custom Builds
 Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. Loaded into `PartRegistry.builds` at startup via `merge_custom_builds()`.

@@ -111,8 +111,8 @@ SystemSets 嚴格鏈式順序：
 ### 預設配裝
 | Build ID | 名稱 | 陀螺 | 武器 |
 |----------|------|------|------|
-| `default_blade` | 標準陀螺 + 刀刃 | default_top | basic_blade（近戰） |
-| `default_blaster` | 標準陀螺 + 砲台 | default_top | basic_blaster（遠程） |
+| `default_blade` | Standard Blade Top | default_top | basic_blade（近戰） |
+| `default_blaster` | Standard Blaster Top | default_top | basic_blaster（遠程） |
 
 ### 自訂配裝
 透過設計工坊 → 組合配裝建立。儲存至 SQLite `builds` 表，啟動時透過 `merge_custom_builds()` 載入至 `PartRegistry.builds`。

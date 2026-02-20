@@ -72,7 +72,7 @@ pub struct DesignState {
 | `ScreenRoot` | Struct | All screens | Despawn anchor for `despawn::<ScreenRoot>` |
 | `TextInput` | Struct | All editors | Text input field (`value`, `focused`, `field_key`) |
 | `TextInputDisplay` | Struct | All editors | Child Text entity showing input value |
-| `HubButton` | Enum | DesignHub | `NewTop`, `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
+| `HubButton` | Enum | DesignHub | `NewTop` (label: "New Wheel"), `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
 | `EditorButton` | Enum | Top/Shaft/Chassis/Screw editors | `Save`, `Cancel`, `SetImage` |
 | `WeaponEditorButton` | Enum | Weapon editor | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
@@ -129,7 +129,7 @@ pub struct DesignState {
 ### design_hub_system
 | Button | Action | Next Phase |
 |--------|--------|------------|
-| NewTop | `editing_part_id = gen_custom_id()` | EditTop |
+| NewTop (shown as "New Wheel") | `editing_part_id = gen_custom_id()` | EditTop (titled "New Wheel") |
 | NewWeapon | `editing_part_id = gen_custom_id()` | EditWeapon |
 | NewShaft | `editing_part_id = gen_custom_id()` | EditShaft |
 | NewChassis | `editing_part_id = gen_custom_id()` | EditChassis |

@@ -72,7 +72,7 @@ pub struct DesignState {
 | `ScreenRoot` | Struct | 所有畫面 | 清除錨點，用於 `despawn::<ScreenRoot>` |
 | `TextInput` | Struct | 所有編輯器 | 文字輸入欄位（`value`、`focused`、`field_key`） |
 | `TextInputDisplay` | Struct | 所有編輯器 | 顯示輸入值的子 Text 實體 |
-| `HubButton` | Enum | DesignHub | `NewTop`, `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
+| `HubButton` | Enum | DesignHub | `NewTop`（顯示為 "New Wheel"）, `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
 | `EditorButton` | Enum | 陀螺/軸/底盤/螺絲編輯器 | `Save`, `Cancel`, `SetImage` |
 | `WeaponEditorButton` | Enum | 武器編輯器 | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
@@ -118,7 +118,7 @@ pub struct DesignState {
 ### design_hub_system
 | 按鈕 | 動作 | 下一個 Phase |
 |------|------|-------------|
-| NewTop | `editing_part_id = gen_custom_id()` | EditTop |
+| NewTop（顯示為 "New Wheel"） | `editing_part_id = gen_custom_id()` | EditTop（標題為 "New Wheel"） |
 | NewWeapon | `editing_part_id = gen_custom_id()` | EditWeapon |
 | NewShaft | `editing_part_id = gen_custom_id()` | EditShaft |
 | NewChassis | `editing_part_id = gen_custom_id()` | EditChassis |

@@ -17,6 +17,7 @@ use crate::game::stats::modifier::ModifierSet;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Build {
     pub id: String,
+    pub name: String,
     pub top: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
@@ -40,6 +41,7 @@ impl Default for Build {
     fn default() -> Self {
         Self {
             id: "default_build".into(),
+            name: "Default Build".into(),
             top: BaseStats::default(),
             weapon: WeaponWheelSpec::default(),
             shaft: ShaftSpec::default(),

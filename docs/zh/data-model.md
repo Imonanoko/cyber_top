@@ -146,6 +146,7 @@ pub struct BuildRef {
 ```rust
 pub struct Build {
     pub id: String,
+    pub name: String,
     pub top: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
@@ -159,7 +160,7 @@ pub struct Build {
 
 ```
 BuildRef（僅 ID）
-  → PartRegistry.resolve_build(build_id, top_id, weapon_id, shaft_id, chassis_id, screw_id)
+  → PartRegistry.resolve_build(build_id, build_name, top_id, weapon_id, shaft_id, chassis_id, screw_id)
   → Build（完整規格）
   → Build.combined_modifiers() → ModifierSet
   → ModifierSet.compute_effective(base, tuning) → EffectiveStats
@@ -204,8 +205,8 @@ pub struct PartRegistry {
 
 | ID | 名稱 | 組成 |
 |----|------|------|
-| `default_blade` | 標準陀螺 + 刀刃 | default_top + basic_blade + standard_* |
-| `default_blaster` | 標準陀螺 + 砲台 | default_top + basic_blaster + standard_* |
+| `default_blade` | Standard Blade Top | default_top + basic_blade + standard_* |
+| `default_blaster` | Standard Blaster Top | default_top + basic_blaster + standard_* |
 
 ---
 
