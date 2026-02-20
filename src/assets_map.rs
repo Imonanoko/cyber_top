@@ -13,6 +13,8 @@ pub struct GameAssets {
     pub projectile_sprites: HashMap<String, Handle<Image>>,
     /// Fallback colors when sprites are missing.
     pub fallback_colors: HashMap<String, Color>,
+    /// Aim arrow sprite (shared between P1 and P2, tinted at spawn time).
+    pub aim_arrow: Handle<Image>,
     /// Sound effect handles.
     pub sfx: SfxHandles,
 }

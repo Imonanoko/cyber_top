@@ -36,7 +36,7 @@ impl Default for Tuning {
     fn default() -> Self {
         Self {
             dt: 1.0 / 60.0,
-            pixels_per_unit: 25.0,
+            pixels_per_unit: 30.0,
             aim_arrow_len_px: 60.0,
             aim_arrow_thickness_px: 4.0,
             aim_arrow_offset_px: 40.0,

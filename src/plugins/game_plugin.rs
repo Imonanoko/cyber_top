@@ -236,11 +236,14 @@ fn load_game_assets(
         projectile_hit: asset_server.load("audio/sfx/projectile_hit.ogg"),
     };
 
+    let aim_arrow = asset_server.load("ui/aim_arrow.png");
+
     commands.insert_resource(GameAssets {
         top_sprites,
         weapon_sprites,
         projectile_sprites,
         fallback_colors,
+        aim_arrow,
         sfx,
     });
 }
@@ -486,13 +489,15 @@ fn setup_arena(
 
     // P1 aim arrow
     let arrow_len = tuning.aim_arrow_len_px / ppu;
-    let arrow_thick = tuning.aim_arrow_thickness_px / ppu;
-    let arrow_mesh = meshes.add(Rectangle::new(arrow_len, arrow_thick));
     commands.spawn((
         InGame,
         AimArrow,
-        Mesh2d(arrow_mesh),
-        MeshMaterial2d(materials.add(Color::srgb(0.2, 1.0, 0.2))),
+        Sprite {
+            image: game_assets.aim_arrow.clone(),
+            custom_size: Some(Vec2::new(arrow_len, arrow_len * 0.5)),
+            color: Color::srgba(0.2, 1.0, 0.2, 0.9),
+            ..default()
+        },
         Transform::from_translation(Vec3::new(-3.0 + arrow_len * 0.5, 0.0, 1.0)),
     ));
 
@@ -541,7 +546,6 @@ fn setup_arena(
 
     // P2 aim arrow (PvP only — AI auto-aims so no arrow needed)
     if selection.mode == GameMode::PvP {
-        let arrow_mesh2 = meshes.add(Rectangle::new(arrow_len, arrow_thick));
         // P2 faces left (angle=PI), so offset arrow to the left
         let p2_dir = Vec2::new(PI.cos(), PI.sin());
         let p2_arrow_center = Vec2::new(3.0, 0.0) + p2_dir * (arrow_len * 0.5);
@@ -549,8 +553,12 @@ fn setup_arena(
             InGame,
             AimArrow,
             Player2Controlled,
-            Mesh2d(arrow_mesh2),
-            MeshMaterial2d(materials.add(Color::srgb(1.0, 0.4, 0.2))),
+            Sprite {
+                image: game_assets.aim_arrow.clone(),
+                custom_size: Some(Vec2::new(arrow_len, arrow_len * 0.5)),
+                color: Color::srgba(1.0, 0.4, 0.2, 0.9),
+                ..default()
+            },
             Transform::from_translation(Vec3::new(p2_arrow_center.x, p2_arrow_center.y, 1.0))
                 .with_rotation(Quat::from_rotation_z(PI)),
         ));
