@@ -46,7 +46,7 @@ pub struct DesignState {
     pub editing_part_id: Option<String>,      // Part being edited (pre-generated for new)
     pub picking_slot: Option<PartSlot>,        // Slot being picked in PickDesignPart (None = wheel)
     pub current_build_id: Option<String>,      // Build being edited (None = new build)
-    pub current_build_top_id: String,
+    pub current_build_wheel_id: String,
     pub current_build_weapon_id: String,
     pub current_build_shaft_id: String,
     pub current_build_chassis_id: String,
@@ -75,11 +75,12 @@ pub struct DesignState {
 | `HubButton` | Enum | DesignHub | `NewTop` (label: "New Wheel"), `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
 | `EditorButton` | Enum | Wheel/Shaft/Chassis/Screw editors | `Save`, `Cancel`, `SetImage` |
-| `WeaponEditorButton` | Enum | Weapon editor | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
-| `KindSelector` | Struct | Weapon editor | `current: WeaponKind`, `just_pressed: bool` |
-| `KindSelectorLabel` | Struct | Weapon editor | Display text for kind button |
-| `MeleeSection` | Struct | Weapon editor | Container for melee param fields |
-| `RangedSection` | Struct | Weapon editor | Container for ranged param fields |
+| `WeaponEditorButton` | Enum | Weapon editor | `Save`, `Cancel`, `SetImage`, `SetProjectileImage`, `SetHitSound`, `SetFireSound` |
+| `KindSelector` | Struct | Weapon editor | `current: WeaponKind` — data store for selected kind |
+| `KindOptionButton` | Struct | Weapon editor | `kind: WeaponKind` — one radio button per kind variant |
+| `MeleeSection` | Struct | Weapon editor | Container for melee param fields (hidden when ranged) |
+| `RangedSection` | Struct | Weapon editor | Container for ranged param fields (hidden when melee) |
+| `AimModeSelector` | Struct | Weapon editor | Cycles `AimMode` for ranged weapons |
 | `AssembleButton` | Enum | AssembleBuild | `ChangeTop`, `ChangeWeapon`, `ChangeShaft`, `ChangeChassis`, `ChangeScrew`, `SaveBuild`, `Back` |
 | `StatsPreviewText` | Struct | AssembleBuild | Live stats preview display |
 | `PickPartButton` | Enum | PickDesignPart | `Select(id)`, `Back` |
@@ -93,7 +94,7 @@ pub struct DesignState {
 | `despawn::<T>` | Despawn all entities with component T | `Query<Entity, With<T>>` |
 | `gen_custom_id()` | Unique ID from nanosecond timestamp | → `String` like `"custom_abc123"` |
 | `slot_dir(slot)` | `PartSlot` → asset directory name | `"weapons"`, `"shafts"`, `"chassis"`, `"screws"` |
-| `is_builtin(id)` | Check if ID is a hardcoded default | `"default_top"`, `"basic_blade"`, `"basic_blaster"`, `"standard_shaft"`, `"standard_chassis"`, `"standard_screw"`, `"default_blade"`, `"default_blaster"` |
+| `is_builtin(id)` | Check if ID is a hardcoded default | `"default_top"`, `"basic_blade"`, `"basic_blaster"`, `"standard_shaft"`, `"standard_chassis"`, `"standard_screw"`, `"default_shaft"`, `"default_chassis"`, `"default_screw"`, `"default_blade"`, `"default_blaster"` |
 | `builds_using_part(registry, id)` | Find all builds referencing a part | Returns `Vec<String>` of build names |
 | `spawn_title(parent, title)` | 36px cyan accent title | — |
 | `spawn_button(parent, label, marker)` | Standard button with label + marker component | Generic `C: Component` |
@@ -108,8 +109,7 @@ pub struct DesignState {
 | `spawn_slot_row(parent, label, name, btn, image)` | Build assembly slot row with image | Used in AssembleBuild |
 | `spawn_pick_card(parent, id, name, stats, image)` | 200px selection card for PickDesignPart | — |
 | `pick_and_copy_image(slot_dir, part_id)` | Opens file picker, copies PNG to assets | Uses `rfd::FileDialog` |
-| `kind_display_text(kind)` | `WeaponKind` → display string | `"Melee"` or `"Ranged"` |
-| `next_kind(kind)` | Cycle weapon kind | Melee → Ranged → Melee |
+| `pick_and_copy_audio(prefix, weapon_id)` | Opens file picker, copies OGG to `assets/audio/sfx/{prefix}_{id}.ogg` | Uses `rfd::FileDialog` |
 
 ### Section Spawners (ManageParts grid sections)
 
@@ -149,12 +149,23 @@ pub struct DesignState {
 | NewBuild | Reset all build slots to defaults | AssembleBuild |
 | Back | — | DesignHub |
 
-### Editor systems (top/shaft/chassis/screw/weapon)
+### Editor systems (top/shaft/chassis/screw)
 | Button | Action | Next Phase |
 |--------|--------|------------|
 | Save | Save JSON to SQLite, update registry | ManageParts (if return_to_manage) else DesignHub |
 | Cancel | — | ManageParts (if return_to_manage) else DesignHub |
-| SetImage | `pick_and_copy_image()` | *(same phase, UI refresh)* |
+| SetImage | `pick_and_copy_image()` | *(same phase)* |
+
+### weapon_editor_system
+| Interaction | Action | Next Phase |
+|-------------|--------|------------|
+| Save | Save JSON to SQLite, update registry | ManageParts (if return_to_manage) else DesignHub |
+| Cancel | — | ManageParts (if return_to_manage) else DesignHub |
+| SetImage | `pick_and_copy_image("weapons", id)` | *(same phase)* |
+| SetProjectileImage | `pick_and_copy_image("projectiles", id)` | *(same phase)* |
+| SetHitSound | `pick_and_copy_audio("hit", id)` → copies to `assets/audio/sfx/hit_{id}.ogg` | *(same phase)* |
+| SetFireSound | `pick_and_copy_audio("fire", id)` → copies to `assets/audio/sfx/fire_{id}.ogg` | *(same phase)* |
+| KindOptionButton(k) | `KindSelector.current = k`; toggle MeleeSection/RangedSection visibility | *(same phase)* |
 
 ### assemble_build_system
 | Button | Action | Next Phase |

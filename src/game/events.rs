@@ -33,6 +33,10 @@ pub enum GameEvent {
         radius: f32,
         lifetime: f32,
         weapon_id: String,
+        /// Sprite visual length (world units). For rectangular projectiles like arrows.
+        visual_len: f32,
+        /// Sprite visual thickness (world units).
+        visual_thick: f32,
     },
     DespawnEntity {
         entity: Entity,

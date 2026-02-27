@@ -16,11 +16,14 @@ target
 # RustRover
 #.idea/
 
-# Database files
-*.db
+# SQLite WAL/journal temp files (never commit these)
 *.db-journal
 *.db-wal
 *.db-shm
+# Allow data/cyber_top.db to be committed (custom maps, tops, builds)
+# Any other *.db files elsewhere are still ignored
+*.db
+!data/cyber_top.db
 
 # Environment
 .env

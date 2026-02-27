@@ -46,7 +46,7 @@ pub struct DesignState {
     pub editing_part_id: Option<String>,      // 正在編輯的零件（新增時預先生成）
     pub picking_slot: Option<PartSlot>,        // 在 PickDesignPart 中選擇的槽位（None = 輪盤）
     pub current_build_id: Option<String>,      // 正在編輯的配裝（None = 新配裝）
-    pub current_build_top_id: String,
+    pub current_build_wheel_id: String,
     pub current_build_weapon_id: String,
     pub current_build_shaft_id: String,
     pub current_build_chassis_id: String,
@@ -75,11 +75,12 @@ pub struct DesignState {
 | `HubButton` | Enum | DesignHub | `NewTop`（顯示為 "New Wheel"）, `NewWeapon`, `NewShaft`, `NewChassis`, `NewScrew`, `ManageParts`, `Back` |
 | `ManageButton` | Enum | ManageParts | `EditTop(id)`, `DeleteTop(id)`, `EditPart{slot,id}`, `DeletePart{slot,id}`, `EditBuild(id)`, `DeleteBuild(id)`, `NewBuild`, `Back` |
 | `EditorButton` | Enum | 輪盤/軸/底盤/螺絲編輯器 | `Save`, `Cancel`, `SetImage` |
-| `WeaponEditorButton` | Enum | 武器編輯器 | `Save`, `Cancel`, `SetImage`, `SetProjectileImage` |
-| `KindSelector` | Struct | 武器編輯器 | `current: WeaponKind`，`just_pressed: bool` |
-| `KindSelectorLabel` | Struct | 武器編輯器 | 類型按鈕的顯示文字 |
-| `MeleeSection` | Struct | 武器編輯器 | 近戰參數欄位的容器 |
-| `RangedSection` | Struct | 武器編輯器 | 遠程參數欄位的容器 |
+| `WeaponEditorButton` | Enum | 武器編輯器 | `Save`, `Cancel`, `SetImage`, `SetProjectileImage`, `SetHitSound`, `SetFireSound` |
+| `KindSelector` | Struct | 武器編輯器 | `current: WeaponKind` — 儲存當前選中的種類 |
+| `KindOptionButton` | Struct | 武器編輯器 | `kind: WeaponKind` — 每個種類對應一個單選按鈕 |
+| `MeleeSection` | Struct | 武器編輯器 | 近戰參數欄位的容器（遠程時隱藏） |
+| `RangedSection` | Struct | 武器編輯器 | 遠程參數欄位的容器（近戰時隱藏） |
+| `AimModeSelector` | Struct | 武器編輯器 | 遠程武器的瞄準模式循環選擇 |
 | `AssembleButton` | Enum | AssembleBuild | `ChangeTop`, `ChangeWeapon`, `ChangeShaft`, `ChangeChassis`, `ChangeScrew`, `SaveBuild`, `Back` |
 | `StatsPreviewText` | Struct | AssembleBuild | 即時數值預覽顯示 |
 | `PickPartButton` | Enum | PickDesignPart | `Select(id)`, `Back` |
@@ -93,7 +94,7 @@ pub struct DesignState {
 | `despawn::<T>` | 清除所有帶有組件 T 的實體 | `Query<Entity, With<T>>` |
 | `gen_custom_id()` | 從奈秒時間戳產生唯一 ID | → 類似 `"custom_abc123"` 的字串 |
 | `slot_dir(slot)` | `PartSlot` → 資產目錄名稱 | `"weapons"`, `"shafts"`, `"chassis"`, `"screws"` |
-| `is_builtin(id)` | 檢查 ID 是否為硬編碼預設 | `"default_top"`, `"basic_blade"` 等 |
+| `is_builtin(id)` | 檢查 ID 是否為硬編碼預設 | `"default_top"`, `"basic_blade"`, `"basic_blaster"`, `"standard_shaft"`, `"standard_chassis"`, `"standard_screw"`, `"default_shaft"`, `"default_chassis"`, `"default_screw"`, `"default_blade"`, `"default_blaster"` |
 | `builds_using_part(registry, id)` | 找出所有參照某零件的配裝 | 返回 `Vec<String>` 配裝名稱 |
 | `spawn_title(parent, title)` | 36px 青色標題 | — |
 | `spawn_button(parent, label, marker)` | 標準按鈕（含標籤 + 標記組件） | 泛型 `C: Component` |
@@ -108,8 +109,7 @@ pub struct DesignState {
 | `spawn_slot_row(parent, label, name, btn, image)` | 配裝組合槽位列（含圖片） | 用於 AssembleBuild |
 | `spawn_pick_card(parent, id, name, stats, image)` | 200px 選擇卡片 | 用於 PickDesignPart |
 | `pick_and_copy_image(slot_dir, part_id)` | 開啟檔案選擇器，複製 PNG 到資產 | 使用 `rfd::FileDialog` |
-| `kind_display_text(kind)` | `WeaponKind` → 顯示字串 | `"Melee"` 或 `"Ranged"` |
-| `next_kind(kind)` | 循環切換武器類型 | Melee → Ranged → Melee |
+| `pick_and_copy_audio(prefix, weapon_id)` | 開啟檔案選擇器，複製 OGG 到 `assets/audio/sfx/{prefix}_{id}.ogg` | 使用 `rfd::FileDialog` |
 
 ---
 
@@ -138,12 +138,23 @@ pub struct DesignState {
 | NewBuild | 重置所有配裝槽位為預設值 | AssembleBuild |
 | Back | — | DesignHub |
 
-### 編輯器系統（陀螺/軸/底盤/螺絲/武器）
+### 編輯器系統（陀螺/軸/底盤/螺絲）
 | 按鈕 | 動作 | 下一個 Phase |
 |------|------|-------------|
 | Save | 儲存 JSON 至 SQLite，更新 registry | ManageParts（若 return_to_manage）否則 DesignHub |
 | Cancel | — | ManageParts（若 return_to_manage）否則 DesignHub |
-| SetImage | `pick_and_copy_image()` | *（同一 Phase，UI 重新整理）* |
+| SetImage | `pick_and_copy_image()` | *（同一 Phase）* |
+
+### weapon_editor_system（武器編輯器）
+| 互動 | 動作 | 下一個 Phase |
+|------|------|-------------|
+| Save | 儲存 JSON 至 SQLite，更新 registry | ManageParts（若 return_to_manage）否則 DesignHub |
+| Cancel | — | ManageParts（若 return_to_manage）否則 DesignHub |
+| SetImage | `pick_and_copy_image("weapons", id)` | *（同一 Phase）* |
+| SetProjectileImage | `pick_and_copy_image("projectiles", id)` | *（同一 Phase）* |
+| SetHitSound | `pick_and_copy_audio("hit", id)` → 複製至 `assets/audio/sfx/hit_{id}.ogg` | *（同一 Phase）* |
+| SetFireSound | `pick_and_copy_audio("fire", id)` → 複製至 `assets/audio/sfx/fire_{id}.ogg` | *（同一 Phase）* |
+| KindOptionButton(k) | `KindSelector.current = k`；切換 MeleeSection/RangedSection 顯示 | *（同一 Phase）* |
 
 ### assemble_build_system
 | 按鈕 | 動作 | 下一個 Phase |
@@ -160,16 +171,16 @@ pub struct DesignState {
 
 ---
 
-## 武器編輯器 — 類型切換細節
+## 武器編輯器 — 種類選擇細節
 
-武器編輯器有特殊的 `KindSelector` 組件：
+武器編輯器有特殊的 `KindSelector` + `KindOptionButton` 組件：
 
-1. **點擊循環** `Melee → Ranged → Melee`（二元，無 Hybrid）
-2. **`just_pressed: bool`** 防止按住時每幀都切換
+1. **單選按鈕列**：每個 `WeaponKind` 變體對應一個按鈕（Sword / Bow / Gun），橫向排列
+2. **選中高亮**：被選中的按鈕背景色為綠色，其餘為灰色
 3. **`MeleeSection` / `RangedSection`** 容器透過 `Display::None` / `Display::Flex` 切換
-   - 曾嘗試 `Visibility::Hidden` 但會保留佈局空間 → 使用 `Display::None`
+   - `kind.is_ranged()` 為 true → 顯示 RangedSection，隱藏 MeleeSection
 4. **儲存時**：讀取 `KindSelector.current` 決定建立哪種規格
-   - `is_melee` / `is_ranged` 互斥
+   - `kind.is_ranged()` 互斥控制 melee/ranged 欄位
    - 只填充激活的規格；另一個為 `None`
 
 ---

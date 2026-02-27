@@ -13,7 +13,7 @@ use crate::game::parts::shaft::ShaftSpec;
 use crate::game::parts::chassis::ChassisSpec;
 use crate::game::parts::trait_screw::TraitScrewSpec;
 use crate::game::stats::base::BaseStats;
-use crate::game::stats::types::{MetersPerSec, PartSlot, Radius, SpinHp, WeaponKind};
+use crate::game::stats::types::{AimMode, MetersPerSec, PartSlot, Radius, SpinHp, WeaponKind};
 use crate::plugins::storage_plugin::TokioRuntime;
 use crate::storage::sqlite_repo::SqliteRepo;
 
@@ -246,6 +246,7 @@ fn is_builtin(id: &str) -> bool {
         id,
         "default_top" | "basic_blade" | "basic_blaster"
             | "standard_shaft" | "standard_chassis" | "standard_screw"
+            | "default_shaft" | "default_chassis" | "default_screw"
             | "default_blade" | "default_blaster"
     )
 }
@@ -1536,16 +1537,18 @@ fn screw_editor_system(
 // ═══════════════════════════════════════════════════════════════════════
 
 #[derive(Component)]
-enum WeaponEditorButton { Save, Cancel, SetImage, SetProjectileImage }
+enum WeaponEditorButton { Save, Cancel, SetImage, SetProjectileImage, SetHitSound, SetFireSound }
 
 #[derive(Component)]
 struct KindSelector {
     current: WeaponKind,
-    just_pressed: bool,
 }
 
+/// Marker on each radio button in the kind selector row.
 #[derive(Component)]
-struct KindSelectorLabel;
+struct KindOptionButton {
+    kind: WeaponKind,
+}
 
 #[derive(Component)]
 struct MeleeSection;
@@ -1553,17 +1556,26 @@ struct MeleeSection;
 #[derive(Component)]
 struct RangedSection;
 
-fn kind_display_text(kind: WeaponKind) -> &'static str {
-    match kind {
-        WeaponKind::Melee => "Melee",
-        WeaponKind::Ranged => "Ranged",
+#[derive(Component)]
+struct AimModeSelector {
+    current: AimMode,
+    just_pressed: bool,
+}
+
+#[derive(Component)]
+struct AimModeSelectorLabel;
+
+fn aim_mode_label(mode: AimMode) -> &'static str {
+    match mode {
+        AimMode::FollowSpin => "FollowSpin",
+        AimMode::SeekNearestTarget => "SeekNearest",
     }
 }
 
-fn next_kind(kind: WeaponKind) -> WeaponKind {
-    match kind {
-        WeaponKind::Melee => WeaponKind::Ranged,
-        WeaponKind::Ranged => WeaponKind::Melee,
+fn next_aim_mode(mode: AimMode) -> AimMode {
+    match mode {
+        AimMode::FollowSpin => AimMode::SeekNearestTarget,
+        AimMode::SeekNearestTarget => AimMode::FollowSpin,
     }
 }
 
@@ -1579,7 +1591,7 @@ fn spawn_weapon_editor(
         .unwrap_or(WeaponWheelSpec {
             id: String::new(),
             name: "My Weapon".into(),
-            kind: WeaponKind::Melee,
+            kind: WeaponKind::Sword,
             melee: Some(MeleeSpec::default()),
             ranged: None,
             sprite_path: None,
@@ -1613,52 +1625,44 @@ fn spawn_weapon_editor(
 
         spawn_field_row(root, "Name", "Display name", "name", &w.name);
 
-        // Kind selector (cycling button)
-        root.spawn(Node {
-            flex_direction: FlexDirection::Row,
-            align_items: AlignItems::Center,
-            column_gap: Val::Px(12.0),
-            ..default()
-        }).with_children(|row| {
-            row.spawn(Node {
-                width: Val::Px(200.0),
-                flex_direction: FlexDirection::Column,
+        // Kind selector (radio buttons)
+        root.spawn((
+            KindSelector { current: kind },
+            Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(12.0),
                 ..default()
-            }).with_children(|col| {
-                col.spawn((
-                    Text::new("Kind"),
-                    TextFont { font_size: 16.0, ..default() },
-                    TextColor(COLOR_TEXT),
-                ));
-                col.spawn((
-                    Text::new("Click to cycle weapon type"),
-                    TextFont { font_size: 11.0, ..default() },
-                    TextColor(COLOR_TEXT_DIM),
-                ));
-            });
+            },
+        )).with_children(|row| {
             row.spawn((
-                KindSelector { current: kind, just_pressed: false },
-                Button,
-                Node {
-                    width: Val::Px(180.0),
-                    height: Val::Px(32.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
-                    ..default()
-                },
-                BackgroundColor(COLOR_BTN),
-            )).with_children(|btn| {
-                btn.spawn((
-                    KindSelectorLabel,
-                    Text::new(kind_display_text(kind)),
-                    TextFont { font_size: 15.0, ..default() },
-                    TextColor(COLOR_ACCENT),
-                ));
-            });
+                Text::new("Kind:"),
+                TextFont { font_size: 16.0, ..default() },
+                TextColor(COLOR_TEXT),
+            ));
+            for &variant in WeaponKind::all_variants() {
+                let selected = variant == kind;
+                let bg = if selected { Color::srgb(0.2, 0.55, 0.25) } else { COLOR_BTN };
+                row.spawn((
+                    KindOptionButton { kind: variant },
+                    Button,
+                    Node {
+                        padding: UiRect::axes(Val::Px(14.0), Val::Px(7.0)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        ..default()
+                    },
+                    BackgroundColor(bg),
+                )).with_children(|btn| {
+                    btn.spawn((
+                        Text::new(variant.display_name()),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(COLOR_TEXT),
+                    ));
+                });
+            }
         });
 
-        let show_melee = kind == WeaponKind::Melee;
+        let show_melee = !kind.is_ranged();
 
         // Melee section (shown when kind == Melee)
         root.spawn((
@@ -1711,6 +1715,48 @@ fn spawn_weapon_editor(
             spawn_field_row(section, "Barrel Len", "Barrel length", "r_barrel_len", &format!("{}", r.barrel_len));
             spawn_field_row(section, "Barrel Thick", "Barrel thickness", "r_barrel_thick", &format!("{}", r.barrel_thick));
             spawn_field_row(section, "Spin Rate Mul", "Visual spin rate multiplier", "r_spin_rate", &format!("{}", r.spin_rate_multiplier));
+
+            // Aim mode toggle button
+            section.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                align_items: AlignItems::Center,
+                column_gap: Val::Px(12.0),
+                margin: UiRect::top(Val::Px(6.0)),
+                ..default()
+            }).with_children(|row| {
+                row.spawn((
+                    Text::new("Aim Mode:"),
+                    TextFont { font_size: 14.0, ..default() },
+                    TextColor(COLOR_TEXT_DIM),
+                ));
+                let aim_label = aim_mode_label(r.aim_mode);
+                row.spawn((
+                    AimModeSelector { current: r.aim_mode, just_pressed: false },
+                    Button,
+                    Node {
+                        padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                        border_radius: BorderRadius::all(Val::Px(4.0)),
+                        ..default()
+                    },
+                    BackgroundColor(COLOR_BTN),
+                )).with_children(|btn| {
+                    btn.spawn((
+                        AimModeSelectorLabel,
+                        Text::new(aim_label),
+                        TextFont { font_size: 14.0, ..default() },
+                        TextColor(COLOR_TEXT),
+                    ));
+                });
+            }); // close aim mode row
+
+            // Set Fire Sound button (ranged only)
+            section.spawn(Node {
+                flex_direction: FlexDirection::Row,
+                margin: UiRect::top(Val::Px(6.0)),
+                ..default()
+            }).with_children(|row| {
+                spawn_button(row, "Set Fire Sound", WeaponEditorButton::SetFireSound);
+            });
         });
 
         root.spawn(Node {
@@ -1721,6 +1767,7 @@ fn spawn_weapon_editor(
         }).with_children(|row| {
             spawn_button(row, "Set Image", WeaponEditorButton::SetImage);
             spawn_button(row, "Set Proj Image", WeaponEditorButton::SetProjectileImage);
+            spawn_button(row, "Set Hit Sound", WeaponEditorButton::SetHitSound);
             spawn_button(row, "Save", WeaponEditorButton::Save);
             spawn_button(row, "Cancel", WeaponEditorButton::Cancel);
         });
@@ -1728,9 +1775,11 @@ fn spawn_weapon_editor(
 }
 
 fn weapon_editor_system(
-    mut q: Query<(&Interaction, &WeaponEditorButton, &mut BackgroundColor), (Changed<Interaction>, Without<KindSelector>)>,
-    mut kind_q: Query<(&Interaction, &mut KindSelector, &mut BackgroundColor, &Children), Without<WeaponEditorButton>>,
-    mut kind_labels: Query<&mut Text, With<KindSelectorLabel>>,
+    mut q: Query<(&Interaction, &WeaponEditorButton, &mut BackgroundColor), (Changed<Interaction>, Without<KindOptionButton>, Without<AimModeSelector>)>,
+    mut kind_selector_q: Query<&mut KindSelector>,
+    mut kind_btn_q: Query<(&Interaction, &KindOptionButton, &mut BackgroundColor), (Without<WeaponEditorButton>, Without<AimModeSelector>)>,
+    mut aim_q: Query<(&Interaction, &mut AimModeSelector, &mut BackgroundColor, &Children), (Without<WeaponEditorButton>, Without<KindOptionButton>)>,
+    mut aim_labels: Query<&mut Text, With<AimModeSelectorLabel>>,
     mut melee_sections: Query<&mut Node, (With<MeleeSection>, Without<RangedSection>)>,
     mut ranged_sections: Query<&mut Node, (With<RangedSection>, Without<MeleeSection>)>,
     inputs: Query<&TextInput>,
@@ -1740,22 +1789,48 @@ fn weapon_editor_system(
     repo: Option<Res<SqliteRepo>>,
     rt: Option<Res<TokioRuntime>>,
 ) {
-    // Handle kind cycling (gate on just_pressed to prevent multi-frame firing)
-    for (interaction, mut selector, mut bg, children) in &mut kind_q {
+    // Handle kind radio button presses
+    let mut new_kind: Option<WeaponKind> = None;
+    for (interaction, btn, _) in &kind_btn_q {
+        if *interaction == Interaction::Pressed {
+            new_kind = Some(btn.kind);
+        }
+    }
+    if let Some(kind) = new_kind {
+        if let Ok(mut ks) = kind_selector_q.single_mut() {
+            ks.current = kind;
+        }
+        let show_melee = !kind.is_ranged();
+        for mut node in &mut melee_sections {
+            node.display = if show_melee { Display::Flex } else { Display::None };
+        }
+        for mut node in &mut ranged_sections {
+            node.display = if !show_melee { Display::Flex } else { Display::None };
+        }
+    }
+
+    // Refresh kind button backgrounds
+    let current_kind = kind_selector_q.single().map(|ks| ks.current).ok();
+    for (interaction, btn, mut bg) in &mut kind_btn_q {
+        let is_selected = current_kind == Some(btn.kind);
+        *bg = if is_selected {
+            BackgroundColor(Color::srgb(0.2, 0.55, 0.25))
+        } else if *interaction == Interaction::Hovered {
+            BackgroundColor(COLOR_BTN_HOVER)
+        } else {
+            BackgroundColor(COLOR_BTN)
+        };
+    }
+
+    // Handle aim mode cycling
+    for (interaction, mut selector, mut bg, children) in &mut aim_q {
         if *interaction == Interaction::Pressed && !selector.just_pressed {
             selector.just_pressed = true;
-            selector.current = next_kind(selector.current);
+            selector.current = next_aim_mode(selector.current);
             for child in children.iter() {
-                if let Ok(mut text) = kind_labels.get_mut(child) {
-                    **text = kind_display_text(selector.current).into();
+                if let Ok(mut text) = aim_labels.get_mut(child) {
+                    **text = aim_mode_label(selector.current).into();
                 }
-            }
-            let show_melee = selector.current == WeaponKind::Melee;
-            for mut node in &mut melee_sections {
-                node.display = if show_melee { Display::Flex } else { Display::None };
-            }
-            for mut node in &mut ranged_sections {
-                node.display = if !show_melee { Display::Flex } else { Display::None };
             }
         }
         if *interaction != Interaction::Pressed {
@@ -1774,14 +1849,13 @@ fn weapon_editor_system(
                 WeaponEditorButton::Save => {
                     let id = state.editing_part_id.clone().unwrap_or_else(gen_custom_id);
                     let name = read_field(&inputs, "name");
-                    let kind = kind_q.iter().next()
-                        .map(|(_, s, _, _)| s.current)
-                        .unwrap_or(WeaponKind::Melee);
+                    let kind = kind_selector_q.single()
+                        .map(|ks| ks.current)
+                        .unwrap_or(WeaponKind::Sword);
 
-                    let is_melee = kind == WeaponKind::Melee;
-                    let is_ranged = kind == WeaponKind::Ranged;
+                    let is_ranged = kind.is_ranged();
 
-                    let melee = if is_melee {
+                    let melee = if !is_ranged {
                         Some(MeleeSpec {
                             base_damage: read_f32(&inputs, "m_base_damage", 5.5),
                             hit_cooldown: read_f32(&inputs, "m_hit_cooldown", 0.5),
@@ -1806,10 +1880,12 @@ fn weapon_editor_system(
                             control_duration: crate::game::stats::types::Seconds(0.0),
                             lifetime: crate::game::stats::types::Seconds(read_f32(&inputs, "r_lifetime", 2.0)),
                             projectile_speed: read_f32(&inputs, "r_proj_speed", 15.0),
-                            aim_mode: crate::game::stats::types::AimMode::FollowSpin,
+                            aim_mode: aim_q.iter().next().map(|(_, s, _, _)| s.current).unwrap_or(AimMode::FollowSpin),
                             spin_rate_multiplier: read_f32(&inputs, "r_spin_rate", 0.3),
                             barrel_len: read_f32(&inputs, "r_barrel_len", 1.0),
                             barrel_thick: read_f32(&inputs, "r_barrel_thick", 0.3),
+                            projectile_visual_len: kind.projectile_dims().0,
+                            projectile_visual_thick: kind.projectile_dims().1,
                         })
                     } else { None };
 
@@ -1843,6 +1919,14 @@ fn weapon_editor_system(
                         let _ = std::fs::create_dir_all("assets/projectiles");
                         let _ = std::fs::copy(&path, &dest);
                     }
+                }
+                WeaponEditorButton::SetHitSound => {
+                    let id = state.editing_part_id.clone().unwrap_or_else(gen_custom_id);
+                    pick_and_copy_audio("hit", &id);
+                }
+                WeaponEditorButton::SetFireSound => {
+                    let id = state.editing_part_id.clone().unwrap_or_else(gen_custom_id);
+                    pick_and_copy_audio("fire", &id);
                 }
             }
         }
@@ -2234,6 +2318,18 @@ fn pick_and_copy_image(slot_dir: &str, part_id: &str) {
         .pick_file()
     {
         let _ = std::fs::create_dir_all(format!("assets/{}", slot_dir));
+        let _ = std::fs::copy(&path, &dest);
+    }
+}
+
+/// Open a file picker for an OGG audio file and copy it to `assets/audio/sfx/{prefix}_{weapon_id}.ogg`.
+fn pick_and_copy_audio(prefix: &str, weapon_id: &str) {
+    let dest = format!("assets/audio/sfx/{}_{}.ogg", prefix, weapon_id);
+    if let Some(path) = rfd::FileDialog::new()
+        .add_filter("OGG Audio", &["ogg"])
+        .pick_file()
+    {
+        let _ = std::fs::create_dir_all("assets/audio/sfx");
         let _ = std::fs::copy(&path, &dest);
     }
 }

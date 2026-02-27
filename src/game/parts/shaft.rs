@@ -16,7 +16,7 @@ pub struct ShaftSpec {
 impl Default for ShaftSpec {
     fn default() -> Self {
         Self {
-            id: "default_shaft".into(),
+            id: "standard_shaft".into(),
             name: "Standard Shaft".into(),
             stability: 0.5,
             spin_efficiency: 1.0,

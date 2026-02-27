@@ -82,7 +82,9 @@
 
 ## 武器系統
 
-### 類型：`Melee（近戰） | Ranged（遠程） | （未來）Hybrid`
+### 類型：`Sword（劍）| Bow（弓）| Gun（槍）| （未來更多）`
+
+> `WeaponKind` 列舉。`Sword` = 近戰；`Bow` / `Gun` = 遠程（以投射物形狀區分）。
 
 ### 瞄準模式
 - `FollowSpin`：方向 = 陀螺旋轉角度

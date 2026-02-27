@@ -53,9 +53,15 @@ pub fn spawn_projectiles(
             radius,
             lifetime,
             weapon_id,
+            visual_len,
+            visual_thick,
         } = event
         {
-            let tf = Transform::from_translation(Vec3::new(position.x, position.y, 0.5));
+            // Rotate projectile sprite to face its travel direction.
+            let travel_angle = direction.y.atan2(direction.x);
+            let tf = Transform::from_translation(Vec3::new(position.x, position.y, 0.5))
+                .with_rotation(Quat::from_rotation_z(travel_angle));
+
             let mut entity = commands.spawn((
                 ProjectileMarker,
                 Velocity(*direction * *speed),
@@ -66,11 +72,10 @@ pub fn spawn_projectiles(
             ));
 
             if let Some(sprite_handle) = proj_assets.sprites.get(weapon_id) {
-                let diameter = *radius * 2.0;
                 entity.insert((
                     Sprite {
                         image: sprite_handle.clone(),
-                        custom_size: Some(Vec2::new(diameter, diameter)),
+                        custom_size: Some(Vec2::new(*visual_len, *visual_thick)),
                         ..default()
                     },
                     tf,

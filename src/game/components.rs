@@ -209,6 +209,11 @@ pub struct DamageBoostActive {
     pub multiplier: f32,
 }
 
+/// World-space aim angle for SeekNearestTarget ranged weapons.
+/// Updated each physics tick by `update_seek_weapon_visual`.
+#[derive(Component, Default)]
+pub struct WeaponAimAngle(pub f32);
+
 // ── Melee tracking ──────────────────────────────────────────────────
 
 /// Tracks per-target hit cooldowns for melee weapons.

@@ -107,8 +107,38 @@ pub enum AimMode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WeaponKind {
-    Melee,
-    Ranged,
+    #[serde(alias = "Melee")]
+    Sword,  // melee
+    Bow,    // ranged — arrow projectile
+    #[serde(alias = "Ranged")]
+    Gun,    // ranged — bullet projectile
+}
+
+impl WeaponKind {
+    pub fn is_ranged(self) -> bool {
+        matches!(self, WeaponKind::Bow | WeaponKind::Gun)
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            WeaponKind::Sword => "Sword",
+            WeaponKind::Bow => "Bow",
+            WeaponKind::Gun => "Gun",
+        }
+    }
+
+    pub fn all_variants() -> &'static [WeaponKind] {
+        &[WeaponKind::Sword, WeaponKind::Bow, WeaponKind::Gun]
+    }
+
+    /// Returns (visual_len, visual_thick) for the projectile sprite.
+    pub fn projectile_dims(self) -> (f32, f32) {
+        match self {
+            WeaponKind::Bow => (1.4, 0.25),
+            WeaponKind::Gun => (0.6, 0.5),
+            WeaponKind::Sword => (1.0, 1.0),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]

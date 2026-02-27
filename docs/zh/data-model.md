@@ -43,11 +43,27 @@ pub struct BaseStats {
 pub struct WeaponWheelSpec {
     pub id: String,
     pub name: String,
-    pub kind: WeaponKind,            // Melee（近戰）或 Ranged（遠程）
-    pub melee: Option<MeleeSpec>,    // kind=Melee 時填充
-    pub ranged: Option<RangedSpec>,  // kind=Ranged 時填充
+    pub kind: WeaponKind,            // Sword（劍）/ Bow（弓）/ Gun（槍）
+    pub melee: Option<MeleeSpec>,    // kind=Sword 時填充
+    pub ranged: Option<RangedSpec>,  // kind=Bow 或 Gun 時填充
     pub sprite_path: Option<String>,
     pub projectile_sprite_path: Option<String>,
+}
+
+// Serde 別名：舊資料中的 "Melee" → Sword，"Ranged" → Gun（向後相容）
+pub enum WeaponKind { Sword, Bow, Gun }
+
+impl WeaponKind {
+    pub fn is_ranged(self) -> bool;           // Bow 與 Gun 回傳 true
+    pub fn display_name(self) -> &'static str;
+    pub fn all_variants() -> &'static [WeaponKind];
+    /// 依種類固定的投射物視覺尺寸：(visual_len, visual_thick)
+    pub fn projectile_dims(self) -> (f32, f32);  // Bow=(1.4,0.25) Gun=(0.6,0.5) Sword=(1.0,1.0)
+}
+
+impl WeaponWheelSpec {
+    pub fn spin_rate_multiplier(&self) -> f32;
+    pub fn projectile_dims(&self) -> (f32, f32);  // 委託給 kind.projectile_dims()
 }
 
 pub struct MeleeSpec {
@@ -76,6 +92,8 @@ pub struct RangedSpec {
     pub spin_rate_multiplier: f32,
     pub barrel_len: f32,             // 砲管長度
     pub barrel_thick: f32,           // 砲管厚度
+    // projectile_visual_len / projectile_visual_thick 保留以向後相容，
+    // 但不再使用——投射物視覺大小由 WeaponKind::projectile_dims() 決定
 }
 ```
 
@@ -133,7 +151,7 @@ pub struct TraitPassive {
 pub struct BuildRef {
     pub id: String,
     pub name: String,
-    pub top_id: String,
+    pub wheel_id: String,
     pub weapon_id: String,
     pub shaft_id: String,
     pub chassis_id: String,
@@ -147,7 +165,7 @@ pub struct BuildRef {
 pub struct Build {
     pub id: String,
     pub name: String,
-    pub top: BaseStats,
+    pub wheel: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
     pub chassis: ChassisSpec,
@@ -160,7 +178,7 @@ pub struct Build {
 
 ```
 BuildRef（僅 ID）
-  → PartRegistry.resolve_build(build_id, build_name, top_id, weapon_id, shaft_id, chassis_id, screw_id)
+  → PartRegistry.resolve_build(build_id, build_name, wheel_id, weapon_id, shaft_id, chassis_id, screw_id)
   → Build（完整規格）
   → Build.combined_modifiers() → ModifierSet
   → ModifierSet.compute_effective(base, tuning) → EffectiveStats
@@ -172,7 +190,7 @@ BuildRef（僅 ID）
 
 ```rust
 pub struct PartRegistry {
-    pub tops: HashMap<String, BaseStats>,
+    pub wheels: HashMap<String, BaseStats>,
     pub weapons: HashMap<String, WeaponWheelSpec>,
     pub shafts: HashMap<String, ShaftSpec>,
     pub chassis: HashMap<String, ChassisSpec>,
@@ -192,21 +210,24 @@ pub struct PartRegistry {
 
 ### 預設零件
 
-| ID | 類型 |
-|----|------|
-| `default_top` | 輪盤 |
-| `basic_blade` | 武器（近戰） |
-| `basic_blaster` | 武器（遠程） |
-| `standard_shaft` | 軸 |
-| `standard_chassis` | 底盤 |
-| `standard_screw` | 螺絲 |
+| ID | 類型 | 備注 |
+|----|------|------|
+| `default_top` | 輪盤 | |
+| `basic_blade` | 武器（Sword） | |
+| `basic_blaster` | 武器（Gun） | |
+| `standard_shaft` | 軸 | |
+| `standard_chassis` | 底盤 | |
+| `standard_screw` | 螺絲 | |
+| `default_shaft` | 軸 | 向後相容別名（舊配裝儲存了此 ID） |
+| `default_chassis` | 底盤 | 向後相容別名 |
+| `default_screw` | 螺絲 | 向後相容別名 |
 
 ### 預設配裝
 
 | ID | 名稱 | 組成 |
 |----|------|------|
-| `default_blade` | Standard Blade Top | default_top + basic_blade + standard_* |
-| `default_blaster` | Standard Blaster Top | default_top + basic_blaster + standard_* |
+| `default_blade` | Standard Blade Top | default_top + basic_blade (Sword) + standard_* |
+| `default_blaster` | Standard Blaster Top | default_top + basic_blaster (Gun) + standard_* |
 
 ---
 
@@ -251,11 +272,19 @@ pub struct ModifierSet {
 
 ## SQLite 持久化 — `storage/sqlite_repo.rs`
 
+### 資料庫位置
+
+`data/cyber_top.db` — 儲存在**專案目錄內**，讓自訂地圖、陀螺、配裝可以跟程式碼一起透過 git 上傳。
+
+- WAL/journal 暫存檔（`*.db-journal`、`*.db-wal`、`*.db-shm`）已加入 `.gitignore`。
+- `data/` 目錄本身被追蹤（含 `.gitkeep`）。
+- 首次執行時透過 SQLx migrations（`migrations/`）自動建立資料庫。
+
 ### 資料表
 
 | 資料表 | 欄位 | 用途 |
 |--------|------|------|
-| `parts` | `id, slot, kind, spec_json` | 所有自訂零件（JSON blob） |
+| `parts` | `id, slot, kind, spec_json, balance_version` | 所有自訂零件（JSON blob） |
 | `builds` | `id, top_id, weapon_id, shaft_id, chassis_id, screw_id, note` | 自訂配裝 |
 | `maps` | `id, name, arena_radius, placements_json` | 自訂地圖 |
 
@@ -296,3 +325,12 @@ repo.delete_map_sync(rt, id) -> Result<(), String>
 圖片遺失 → 程序性備用網格（遊戲照常運行）。
 
 設計工坊的「設定圖片」按鈕使用 `rfd::FileDialog` 選擇 PNG，並複製到對應的 `assets/{slot}/` 目錄，使用零件預先產生的 ID 命名。
+
+### 音效資產（每把武器專屬音效）
+
+| 檔案 | 命名規則 | 觸發時機 |
+|------|---------|---------|
+| `assets/audio/sfx/hit_{weapon_id}.ogg` | 武器命中音效 | 近戰命中（若無則回退至全域 `melee_hit.ogg`） |
+| `assets/audio/sfx/fire_{weapon_id}.ogg` | 射擊音效 | 遠程武器發射 |
+
+武器編輯器的「設定命中音效」/「設定射擊音效」按鈕會將 `.ogg` 檔複製到正確路徑。

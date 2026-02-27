@@ -23,12 +23,12 @@ src/
 │   ├── parts/
 │   │   ├── mod.rs                   # Build struct（已解析的輪盤+武器+零件）
 │   │   ├── registry.rs              # PartRegistry、BuildRef、resolve_build()、maps HashMap
-│   │   ├── weapon_wheel.rs          # WeaponWheelSpec、MeleeSpec、RangedSpec
+│   │   ├── weapon_wheel.rs          # WeaponWheelSpec（kind: Sword/Bow/Gun）、MeleeSpec、RangedSpec
 │   │   ├── shaft.rs                 # ShaftSpec（穩定性、旋轉效率）
 │   │   ├── chassis.rs               # ChassisSpec（速度/加速度/半徑修改）
 │   │   └── trait_screw.rs           # TraitScrewSpec、TraitPassive、鉤子
 │   ├── stats/
-│   │   ├── types.rs                 # 新型別（SpinHp、Radius 等）、列舉（WeaponKind、PartSlot、ControlEffect）
+│   │   ├── types.rs                 # 新型別（SpinHp、Radius 等）、列舉（WeaponKind{Sword,Bow,Gun}、PartSlot、ControlEffect）
 │   │   ├── base.rs                  # BaseStats（不可變輪盤參數）
 │   │   ├── effective.rs             # EffectiveStats（Base + 修改值計算結果）
 │   │   └── modifier.rs              # StatModifier、ModifierSet、疊加邏輯
@@ -45,7 +45,7 @@ src/
     ├── map_design_plugin.rs         # 地圖清單（DesignMapHub）+ 格子編輯器（EditMap）
     ├── menu_plugin.rs               # 主選單、Selection、地圖選擇、配裝選擇
     ├── design_plugin.rs             # 設計工坊（所有編輯器、管理、配裝組合）
-    ├── storage_plugin.rs            # StoragePlugin、TokioRuntime Resource
+    ├── storage_plugin.rs            # StoragePlugin（PreStartup）、TokioRuntime Resource；DB 在 data/cyber_top.db
     └── ui_plugin.rs                 # 戰鬥 HUD（HP、有效速度、有效武器傷害）
 ```
 

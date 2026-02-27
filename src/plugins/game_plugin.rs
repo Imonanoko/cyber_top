@@ -69,6 +69,7 @@ impl Plugin for GamePlugin {
                 damage_boost_system,
                 gravity_device_system,
                 physics::integrate_physics,
+                physics::update_seek_weapon_visual,
                 physics::integrate_projectiles,
                 physics::spin_drain,
                 physics::tick_control_state,
@@ -226,6 +227,15 @@ fn load_game_assets(
     fallback_colors.insert("basic_blade".into(), Color::srgb(0.9, 0.9, 1.0));
     fallback_colors.insert("basic_blaster".into(), Color::srgb(0.9, 0.9, 1.0));
 
+    // Load per-weapon fire SFX (convention: audio/sfx/fire_{weapon_id}.ogg)
+    // Load per-weapon hit SFX (convention: audio/sfx/hit_{weapon_id}.ogg)
+    let mut weapon_fire_sfx = HashMap::new();
+    let mut weapon_hit_sfx = HashMap::new();
+    for id in registry.weapons.keys() {
+        weapon_fire_sfx.insert(id.clone(), asset_server.load(format!("audio/sfx/fire_{}.ogg", id)));
+        weapon_hit_sfx.insert(id.clone(), asset_server.load(format!("audio/sfx/hit_{}.ogg", id)));
+    }
+
     // Load SFX
     let sfx = SfxHandles {
         launch: asset_server.load("audio/sfx/launch.ogg"),
@@ -234,6 +244,8 @@ fn load_game_assets(
         melee_hit: asset_server.load("audio/sfx/melee_hit.ogg"),
         ranged_fire: asset_server.load("audio/sfx/ranged_fire.ogg"),
         projectile_hit: asset_server.load("audio/sfx/projectile_hit.ogg"),
+        weapon_fire_sfx,
+        weapon_hit_sfx,
     };
 
     let aim_arrow = asset_server.load("ui/aim_arrow.png");
@@ -285,15 +297,12 @@ fn spawn_weapon_visual(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
 ) {
-    let (len, thick) = match weapon.kind {
-        WeaponKind::Ranged => {
-            let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
-            (r.barrel_len, r.barrel_thick)
-        }
-        WeaponKind::Melee => {
-            let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
-            (m.blade_len, m.blade_thick)
-        }
+    let (len, thick) = if weapon.kind.is_ranged() {
+        let r = weapon.ranged.as_ref().expect("Ranged weapon missing RangedSpec");
+        (r.barrel_len, r.barrel_thick)
+    } else {
+        let m = weapon.melee.as_ref().expect("Melee weapon missing MeleeSpec");
+        (m.blade_len, m.blade_thick)
     };
     let tf = Transform::from_translation(Vec3::new(top_radius + len * 0.5, 0.0, 0.5));
 
@@ -482,6 +491,7 @@ fn setup_arena(
         (LaunchAim::default(), MeleeHitTracker::default(), combat::RangedFireTimer::default()),
         SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
         DamageBoostActive { multiplier: 1.0 },
+        WeaponAimAngle::default(),
     ));
     insert_wheel_visual(&mut p1_entity, &p1_wheel_id, p1_radius, &game_assets, &mut meshes, &mut materials);
     p1_entity.with_children(|parent| {
@@ -534,6 +544,7 @@ fn setup_arena(
         (LaunchAim { angle: PI, confirmed: false }, MeleeHitTracker::default(), combat::RangedFireTimer::default()),
         SpeedBoostEffect { expires_at: 0.0, multiplier: 1.0 },
         DamageBoostActive { multiplier: 1.0 },
+        WeaponAimAngle::default(),
     ));
 
     match selection.mode {
@@ -751,6 +762,7 @@ fn play_sound_effects(
     mut game_events: MessageReader<GameEvent>,
     mut collision_events: MessageReader<CollisionMessage>,
     game_assets: Res<GameAssets>,
+    tops: Query<&TopBuild, With<Top>>,
 ) {
     // Top-top collision
     for _event in collision_events.read() {
@@ -762,23 +774,34 @@ fn play_sound_effects(
 
     for event in game_events.read() {
         match event {
-            GameEvent::DealDamage { kind, .. } => {
+            GameEvent::DealDamage { kind, src, .. } => {
                 let handle = match kind {
-                    DamageKind::Wall => Some(&game_assets.sfx.collision_wall),
-                    DamageKind::Melee => Some(&game_assets.sfx.melee_hit),
-                    DamageKind::Projectile => Some(&game_assets.sfx.projectile_hit),
+                    DamageKind::Wall => Some(game_assets.sfx.collision_wall.clone()),
+                    DamageKind::Melee => {
+                        // Try per-weapon hit sound first, fall back to global
+                        let per_weapon = src
+                            .and_then(|e| tops.get(e).ok())
+                            .and_then(|build| game_assets.sfx.weapon_hit_sfx.get(&build.0.weapon.id))
+                            .cloned();
+                        Some(per_weapon.unwrap_or_else(|| game_assets.sfx.melee_hit.clone()))
+                    }
+                    DamageKind::Projectile => Some(game_assets.sfx.projectile_hit.clone()),
                     _ => None,
                 };
                 if let Some(h) = handle {
                     commands.spawn((
-                        AudioPlayer::<AudioSource>(h.clone()),
+                        AudioPlayer::<AudioSource>(h),
                         PlaybackSettings::DESPAWN,
                     ));
                 }
             }
-            GameEvent::SpawnProjectile { .. } => {
+            GameEvent::SpawnProjectile { weapon_id, .. } => {
+                let handle = game_assets.sfx.weapon_fire_sfx
+                    .get(weapon_id)
+                    .unwrap_or(&game_assets.sfx.ranged_fire)
+                    .clone();
                 commands.spawn((
-                    AudioPlayer::<AudioSource>(game_assets.sfx.ranged_fire.clone()),
+                    AudioPlayer::<AudioSource>(handle),
                     PlaybackSettings::DESPAWN,
                 ));
             }

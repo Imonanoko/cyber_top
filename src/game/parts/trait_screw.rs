@@ -48,7 +48,7 @@ pub struct TraitScrewSpec {
 impl Default for TraitScrewSpec {
     fn default() -> Self {
         Self {
-            id: "default_screw".into(),
+            id: "standard_screw".into(),
             name: "Standard Screw".into(),
             passive: TraitPassive::default(),
             hooks: Vec::new(),

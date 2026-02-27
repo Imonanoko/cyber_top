@@ -50,7 +50,7 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 | `DesignPlugin` | `plugins/design_plugin.rs` | 設計工坊：零件編輯器、配裝組合、零件管理 |
 | `MapDesignPlugin` | `plugins/map_design_plugin.rs` | 地圖清單（DesignMapHub）與格子編輯器（EditMap） |
 | `UiPlugin` | `plugins/ui_plugin.rs` | 戰鬥 HUD（HP、有效速度、有效武器傷害） |
-| `StoragePlugin` | `plugins/storage_plugin.rs` | SQLite/SQLx 初始化、TokioRuntime Resource |
+| `StoragePlugin` | `plugins/storage_plugin.rs` | SQLite/SQLx 初始化（`PreStartup`）、TokioRuntime Resource；DB 在 `data/cyber_top.db` |
 
 ---
 
@@ -111,8 +111,8 @@ SystemSets 嚴格鏈式順序：
 ### 預設配裝
 | Build ID | 名稱 | 輪盤 | 武器 |
 |----------|------|------|------|
-| `default_blade` | Standard Blade Top | default_top | basic_blade（近戰） |
-| `default_blaster` | Standard Blaster Top | default_top | basic_blaster（遠程） |
+| `default_blade` | Standard Blade Top | default_top | basic_blade（Sword） |
+| `default_blaster` | Standard Blaster Top | default_top | basic_blaster（Gun） |
 
 ### 自訂配裝
 透過設計工坊 → 組合配裝建立。儲存至 SQLite `builds` 表，啟動時透過 `merge_custom_builds()` 載入至 `PartRegistry.builds`。
@@ -176,8 +176,15 @@ assets/
   screws/         # {screw_id}.png
   ui/             # edit.png, delete.png, + hover 版本
   audio/sfx/      # launch.ogg, collision_top.ogg 等
+                  # 每把武器：hit_{weapon_id}.ogg, fire_{weapon_id}.ogg
   obstacles/      # obstacle.png, gravity_device.png, speed_boost.png, damage_boost.png
 ```
+
+### 音效（Audio）
+- `SfxHandles` 持有全域 handle：launch、collision_top、collision_wall、melee_hit、ranged_fire、projectile_hit，以及 `weapon_hit_sfx: HashMap<String, Handle<AudioSource>>` 每把武器專屬命中音效
+- `play_sound_effects` 系統在 CleanupSet 中讀取 `GameEvent` + `CollisionMessage`，生成一次性 `AudioPlayer::<AudioSource>`（`PlaybackSettings::DESPAWN`）
+- 近戰命中：優先嘗試 `hit_{weapon_id}.ogg`，若無則回退至全域 `melee_hit.ogg`
+- 武器音效檔透過武器編輯器的「設定命中音效」/「設定射擊音效」按鈕（rfd::FileDialog → 複製 ogg）放置
 
 ---
 

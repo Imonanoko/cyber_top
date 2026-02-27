@@ -1,6 +1,5 @@
 use bevy::prelude::*;
 
-use crate::config::tuning::Tuning;
 use crate::storage::sqlite_repo::SqliteRepo;
 
 /// Persisted tokio runtime for sync DB calls outside startup.
@@ -11,12 +10,13 @@ pub struct StoragePlugin;
 
 impl Plugin for StoragePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, init_storage);
+        app.add_systems(PreStartup, init_storage);
     }
 }
 
 fn init_storage(world: &mut World) {
-    let db_path = Tuning::data_dir().join("cyber_top.db");
+    // Store DB inside the project so custom content (maps, tops, builds) can be committed.
+    let db_path = std::path::PathBuf::from("data/cyber_top.db");
     info!("Initializing SQLite at {:?}", db_path);
 
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");

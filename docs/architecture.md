@@ -50,7 +50,7 @@ MainMenu → Selection → PickMap / PickTop → Aiming → Battle → GameOver 
 | `DesignPlugin` | `plugins/design_plugin.rs` | Design workshop: part editors, build assembly, part management |
 | `MapDesignPlugin` | `plugins/map_design_plugin.rs` | Map list (DesignMapHub) and grid editor (EditMap) |
 | `UiPlugin` | `plugins/ui_plugin.rs` | Battle HUD (HP, effective speed, effective weapon damage) |
-| `StoragePlugin` | `plugins/storage_plugin.rs` | SQLite/SQLx init, TokioRuntime resource |
+| `StoragePlugin` | `plugins/storage_plugin.rs` | SQLite/SQLx init (`PreStartup`), TokioRuntime resource; DB at `data/cyber_top.db` |
 
 ---
 
@@ -114,8 +114,8 @@ Build = Wheel + Weapon + Shaft + Chassis + Screw
 ### Default Builds
 | Build ID | Name | Wheel | Weapon |
 |----------|------|-----|--------|
-| `default_blade` | Standard Blade Top | default_top | basic_blade (Melee) |
-| `default_blaster` | Standard Blaster Top | default_top | basic_blaster (Ranged) |
+| `default_blade` | Standard Blade Top | default_top | basic_blade (Sword) |
+| `default_blaster` | Standard Blaster Top | default_top | basic_blaster (Gun) |
 
 ### Custom Builds
 Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. Loaded into `PartRegistry.builds` at startup via `merge_custom_builds()`.
@@ -164,9 +164,12 @@ Created via Design Workshop → Assemble Build. Saved to SQLite `builds` table. 
 - UI previews: `ImageNode` in picker/editor cards, else colored `Node` with `BackgroundColor`
 
 ### Audio
-- `SfxHandles` holds 6 sound effect handles: launch, collision_top, collision_wall, melee_hit, ranged_fire, projectile_hit
+- `SfxHandles` holds global handles: launch, collision_top, collision_wall, melee_hit, ranged_fire, projectile_hit, plus `weapon_hit_sfx: HashMap<String, Handle<AudioSource>>` for per-weapon hit sounds
 - `play_sound_effects` system in CleanupSet reads `GameEvent` + `CollisionMessage`, spawns one-shot `AudioPlayer::<AudioSource>` with `PlaybackSettings::DESPAWN`
+- Melee hit: tries per-weapon `hit_{weapon_id}.ogg`, falls back to global `melee_hit.ogg`
 - Launch sound played in `launch_tops()` on battle entry
+- Per-weapon audio files: `assets/audio/sfx/hit_{weapon_id}.ogg`, `assets/audio/sfx/fire_{weapon_id}.ogg`
+- Set via "Set Hit Sound" / "Set Fire Sound" buttons in weapon editor (same `rfd::FileDialog` flow as Set Image)
 
 ### Asset Directory Structure
 ```

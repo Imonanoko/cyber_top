@@ -64,8 +64,17 @@ pub struct RangedSpec {
     /// Visual spin rate multiplier (1.0 = default, higher = faster rotation).
     pub spin_rate_multiplier: f32,
     pub barrel_len: f32,
-    pub barrel_thick: f32
+    pub barrel_thick: f32,
+    /// Projectile sprite visual length (world units). Independent of collision radius.
+    #[serde(default = "default_proj_visual_len")]
+    pub projectile_visual_len: f32,
+    /// Projectile sprite visual thickness (world units). Independent of collision radius.
+    #[serde(default = "default_proj_visual_thick")]
+    pub projectile_visual_thick: f32,
 }
+
+fn default_proj_visual_len() -> f32 { 1.0 }
+fn default_proj_visual_thick() -> f32 { 0.3 }
 
 impl Default for RangedSpec {
     fn default() -> Self {
@@ -82,7 +91,9 @@ impl Default for RangedSpec {
             aim_mode: AimMode::FollowSpin,
             spin_rate_multiplier: 0.2,
             barrel_len: 1.0,
-            barrel_thick: 0.3
+            barrel_thick: 0.3,
+            projectile_visual_len: 1.0,
+            projectile_visual_thick: 0.3,
         }
     }
 }
@@ -114,14 +125,19 @@ impl WeaponWheelSpec {
             (None, None) => 1.0,
         }
     }
+
+    /// Returns (visual_len, visual_thick) for the projectile sprite, derived from weapon kind.
+    pub fn projectile_dims(&self) -> (f32, f32) {
+        self.kind.projectile_dims()
+    }
 }
 
 impl Default for WeaponWheelSpec {
     fn default() -> Self {
         Self {
-            id: "default_melee".into(),
+            id: "default_sword".into(),
             name: "Standard Blade".into(),
-            kind: WeaponKind::Melee,
+            kind: WeaponKind::Sword,
             melee: Some(MeleeSpec::default()),
             ranged: None,
             sprite_path: None,

@@ -24,7 +24,7 @@ pub struct ChassisSpec {
 impl Default for ChassisSpec {
     fn default() -> Self {
         Self {
-            id: "default_chassis".into(),
+            id: "standard_chassis".into(),
             name: "Standard Chassis".into(),
             move_speed_add: 0.0,
             move_speed_mul: 1.0,

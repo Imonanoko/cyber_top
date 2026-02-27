@@ -82,7 +82,9 @@ All damage as events: `DealDamage { src, dst, amount, kind, tags }`
 
 ## Weapon System
 
-### Types: `Melee | Ranged | (Future) Hybrid`
+### Types: `Sword | Bow | Gun | (Future) more`
+
+> `WeaponKind` enum. `Sword` = melee; `Bow` / `Gun` = ranged (distinguished by projectile shape).
 
 ### Aim Modes
 - `FollowSpin`: direction = top rotation angle

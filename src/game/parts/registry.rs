@@ -51,7 +51,7 @@ impl PartRegistry {
             WeaponWheelSpec {
                 id: "basic_blade".into(),
                 name: "Standard Blade".into(),
-                kind: WeaponKind::Melee,
+                kind: WeaponKind::Sword,
                 melee: Some(MeleeSpec::default()),
                 ranged: None,
                 sprite_path: None,
@@ -64,7 +64,7 @@ impl PartRegistry {
             WeaponWheelSpec {
                 id: "basic_blaster".into(),
                 name: "Standard Blaster".into(),
-                kind: WeaponKind::Ranged,
+                kind: WeaponKind::Gun,
                 melee: None,
                 ranged: Some(RangedSpec::default()),
                 sprite_path: None,
@@ -75,14 +75,23 @@ impl PartRegistry {
         // ── Shafts ─────────────────────────────────────────────────
         reg.shafts
             .insert("standard_shaft".into(), ShaftSpec::default());
+        // backward compat: old builds saved with "default_shaft" as the id
+        reg.shafts
+            .insert("default_shaft".into(), ShaftSpec::default());
 
         // ── Chassis ────────────────────────────────────────────────
         reg.chassis
             .insert("standard_chassis".into(), ChassisSpec::default());
+        // backward compat
+        reg.chassis
+            .insert("default_chassis".into(), ChassisSpec::default());
 
         // ── Trait Screws ───────────────────────────────────────────
         reg.screws
             .insert("standard_screw".into(), TraitScrewSpec::default());
+        // backward compat
+        reg.screws
+            .insert("default_screw".into(), TraitScrewSpec::default());
 
         // ── Default Builds ───────────────────────────────────────
         reg.builds.insert(
@@ -132,8 +141,9 @@ impl PartRegistry {
         }
         if let Ok(parts) = repo.load_parts_by_slot_sync(rt, "weapon") {
             for (id, _kind, json) in parts {
-                if let Ok(spec) = serde_json::from_str::<WeaponWheelSpec>(&json) {
-                    self.weapons.insert(id, spec);
+                match serde_json::from_str::<WeaponWheelSpec>(&json) {
+                    Ok(spec) => { self.weapons.insert(id, spec); }
+                    Err(e) => { bevy::log::error!("Failed to deserialize weapon '{}': {}", id, e); }
                 }
             }
         }
@@ -212,11 +222,26 @@ impl PartRegistry {
         chassis_id: &str,
         screw_id: &str,
     ) -> Option<Build> {
-        let wheel = self.wheels.get(wheel_id)?.clone();
-        let weapon = self.weapons.get(weapon_id)?.clone();
-        let shaft = self.shafts.get(shaft_id)?.clone();
-        let chassis = self.chassis.get(chassis_id)?.clone();
-        let screw = self.screws.get(screw_id)?.clone();
+        let wheel = self.wheels.get(wheel_id).or_else(|| {
+            bevy::log::error!("resolve_build '{}': wheel '{}' not in registry", build_id, wheel_id);
+            None
+        })?.clone();
+        let weapon = self.weapons.get(weapon_id).or_else(|| {
+            bevy::log::error!("resolve_build '{}': weapon '{}' not in registry", build_id, weapon_id);
+            None
+        })?.clone();
+        let shaft = self.shafts.get(shaft_id).or_else(|| {
+            bevy::log::error!("resolve_build '{}': shaft '{}' not in registry", build_id, shaft_id);
+            None
+        })?.clone();
+        let chassis = self.chassis.get(chassis_id).or_else(|| {
+            bevy::log::error!("resolve_build '{}': chassis '{}' not in registry", build_id, chassis_id);
+            None
+        })?.clone();
+        let screw = self.screws.get(screw_id).or_else(|| {
+            bevy::log::error!("resolve_build '{}': screw '{}' not in registry", build_id, screw_id);
+            None
+        })?.clone();
 
         Some(Build {
             id: build_id.into(),

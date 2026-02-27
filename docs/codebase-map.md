@@ -23,12 +23,12 @@ src/
 │   ├── parts/
 │   │   ├── mod.rs                   # Build struct (resolved wheel+weapon+parts)
 │   │   ├── registry.rs              # PartRegistry, BuildRef, resolve_build(), maps HashMap
-│   │   ├── weapon_wheel.rs          # WeaponWheelSpec, MeleeSpec, RangedSpec
+│   │   ├── weapon_wheel.rs          # WeaponWheelSpec (kind: Sword/Bow/Gun), MeleeSpec, RangedSpec
 │   │   ├── shaft.rs                 # ShaftSpec (stability, spin_efficiency)
 │   │   ├── chassis.rs               # ChassisSpec (speed/accel/radius mods)
 │   │   └── trait_screw.rs           # TraitScrewSpec, TraitPassive, hooks
 │   ├── stats/
-│   │   ├── types.rs                 # Newtypes (SpinHp, Radius, etc.), enums (WeaponKind, PartSlot, ControlEffect)
+│   │   ├── types.rs                 # Newtypes (SpinHp, Radius, etc.), enums (WeaponKind{Sword,Bow,Gun}, PartSlot, ControlEffect)
 │   │   ├── base.rs                  # BaseStats (immutable wheel params)
 │   │   ├── effective.rs             # EffectiveStats (computed from base + mods)
 │   │   └── modifier.rs             # StatModifier, ModifierSet, stacking logic

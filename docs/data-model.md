@@ -43,14 +43,28 @@ pub struct BaseStats {
 pub struct WeaponWheelSpec {
     pub id: String,
     pub name: String,
-    pub kind: WeaponKind,            // Melee or Ranged
-    pub melee: Option<MeleeSpec>,    // Populated when kind=Melee
-    pub ranged: Option<RangedSpec>,  // Populated when kind=Ranged
+    pub kind: WeaponKind,            // Sword / Bow / Gun
+    pub melee: Option<MeleeSpec>,    // Populated when kind=Sword
+    pub ranged: Option<RangedSpec>,  // Populated when kind=Bow or Gun
     pub sprite_path: Option<String>,
     pub projectile_sprite_path: Option<String>,
 }
 
-pub enum WeaponKind { Melee, Ranged }
+// Serde aliases: "Melee" → Sword, "Ranged" → Gun (backward compat with old SQLite data)
+pub enum WeaponKind { Sword, Bow, Gun }
+
+impl WeaponKind {
+    pub fn is_ranged(self) -> bool;          // true for Bow and Gun
+    pub fn display_name(self) -> &'static str;
+    pub fn all_variants() -> &'static [WeaponKind];
+    /// Fixed projectile visual dimensions per kind: (visual_len, visual_thick)
+    pub fn projectile_dims(self) -> (f32, f32);  // Bow=(1.4,0.25) Gun=(0.6,0.5) Sword=(1.0,1.0)
+}
+
+impl WeaponWheelSpec {
+    pub fn spin_rate_multiplier(&self) -> f32;
+    pub fn projectile_dims(&self) -> (f32, f32);  // delegates to kind.projectile_dims()
+}
 
 pub struct MeleeSpec {
     pub base_damage: f32,
@@ -78,6 +92,8 @@ pub struct RangedSpec {
     pub spin_rate_multiplier: f32,
     pub barrel_len: f32,
     pub barrel_thick: f32,
+    // projectile_visual_len / projectile_visual_thick retained for backward compat
+    // but are NOT used — visual size is derived from WeaponKind::projectile_dims()
 }
 ```
 
@@ -135,7 +151,7 @@ pub struct TraitPassive {
 pub struct BuildRef {
     pub id: String,
     pub name: String,
-    pub top_id: String,
+    pub wheel_id: String,
     pub weapon_id: String,
     pub shaft_id: String,
     pub chassis_id: String,
@@ -149,7 +165,7 @@ pub struct BuildRef {
 pub struct Build {
     pub id: String,
     pub name: String,
-    pub top: BaseStats,
+    pub wheel: BaseStats,
     pub weapon: WeaponWheelSpec,
     pub shaft: ShaftSpec,
     pub chassis: ChassisSpec,
@@ -162,7 +178,7 @@ pub struct Build {
 
 ```
 BuildRef (IDs only)
-  → PartRegistry.resolve_build(build_id, build_name, top_id, weapon_id, shaft_id, chassis_id, screw_id)
+  → PartRegistry.resolve_build(build_id, build_name, wheel_id, weapon_id, shaft_id, chassis_id, screw_id)
   → Build (full specs)
   → Build.combined_modifiers() → ModifierSet
   → ModifierSet.compute_effective(base, tuning) → EffectiveStats
@@ -174,7 +190,7 @@ BuildRef (IDs only)
 
 ```rust
 pub struct PartRegistry {
-    pub tops: HashMap<String, BaseStats>,
+    pub wheels: HashMap<String, BaseStats>,
     pub weapons: HashMap<String, WeaponWheelSpec>,
     pub shafts: HashMap<String, ShaftSpec>,
     pub chassis: HashMap<String, ChassisSpec>,
@@ -192,14 +208,17 @@ pub struct PartRegistry {
 
 ### Default Parts
 
-| ID | Type |
-|----|------|
-| `default_top` | Wheel |
-| `basic_blade` | Weapon (Melee) |
-| `basic_blaster` | Weapon (Ranged) |
-| `standard_shaft` | Shaft |
-| `standard_chassis` | Chassis |
-| `standard_screw` | Screw |
+| ID | Type | Notes |
+|----|------|-------|
+| `default_top` | Wheel | |
+| `basic_blade` | Weapon (Sword) | |
+| `basic_blaster` | Weapon (Gun) | |
+| `standard_shaft` | Shaft | |
+| `standard_chassis` | Chassis | |
+| `standard_screw` | Screw | |
+| `default_shaft` | Shaft | Alias for backward compat (old builds saved this ID) |
+| `default_chassis` | Chassis | Alias for backward compat |
+| `default_screw` | Screw | Alias for backward compat |
 
 ### Default Builds
 
@@ -251,13 +270,21 @@ Read-only computed stats used during battle. Cached per build.
 
 ## SQLite Persistence — `storage/sqlite_repo.rs`
 
+### Database Location
+
+`data/cyber_top.db` — stored **inside the project directory** so custom maps, tops, and builds are committed to git alongside the code.
+
+- WAL/journal files (`*.db-journal`, `*.db-wal`, `*.db-shm`) are gitignored.
+- The `data/` directory is tracked (contains `.gitkeep`).
+- DB is created automatically on first run via SQLx migrations (`migrations/`).
+
 ### Tables
 
 | Table | Columns | Purpose |
 |-------|---------|---------|
-| `parts` | `id, slot, kind, spec_json` | All custom parts (JSON blob) |
+| `parts` | `id, slot, kind, spec_json, balance_version` | All custom parts (JSON blob) |
 | `builds` | `id, top_id, weapon_id, shaft_id, chassis_id, screw_id, note` | Custom builds |
-| `effective_cache` | `build_id, effective_stats_json, computed_at, balance_version, hash` | Stats cache |
+| `maps` | `id, name, arena_radius, placements_json` | Custom maps |
 
 ### Key Sync Methods (used by design plugin)
 
@@ -271,6 +298,11 @@ repo.delete_part_sync(rt, id) -> Result<(), String>
 repo.save_build_sync(rt, build: &Build) -> Result<(), String>
 repo.load_all_builds_sync(rt) -> Result<Vec<(id, top_id, weapon_id, shaft_id, chassis_id, screw_id, note)>, String>
 repo.delete_build_sync(rt, id) -> Result<(), String>
+
+// Maps
+repo.save_map_sync(rt, id, name, arena_radius, placements_json) -> Result<(), String>
+repo.load_all_maps_sync(rt) -> Result<Vec<(id, name, arena_radius, placements_json)>, String>
+repo.delete_map_sync(rt, id) -> Result<(), String>
 ```
 
 ### Save Patterns
@@ -302,3 +334,12 @@ Part ID determines file path automatically:
 Missing images → procedural fallback mesh (game still works).
 
 The design workshop's "Set Image" button uses `rfd::FileDialog` to pick a PNG, which is copied to the correct `assets/{slot}/` directory using the part's pre-generated ID.
+
+### Audio Assets (per-weapon sounds)
+
+| File | Convention | Trigger |
+|------|-----------|---------|
+| `assets/audio/sfx/hit_{weapon_id}.ogg` | Weapon hit sound | Melee hit (falls back to `melee_hit.ogg`) |
+| `assets/audio/sfx/fire_{weapon_id}.ogg` | Fire sound | Ranged shot |
+
+The "Set Hit Sound" / "Set Fire Sound" buttons in the weapon editor copy an `.ogg` file to the correct path.

@@ -155,12 +155,13 @@ pub fn fire_ranged_weapons(
             &TopBuild,
             &TopEffectiveStats,
             &mut RangedFireTimer,
+            Option<&super::components::WeaponAimAngle>,
         ),
         With<Top>,
     >,
     mut events: MessageWriter<GameEvent>,
 ) {
-    for (entity, transform, angle, build, stats, mut timer) in &mut query {
+    for (entity, transform, angle, build, stats, mut timer, aim_angle) in &mut query {
         timer.0 -= tuning.dt;
 
         if timer.0 > 0.0 {
@@ -172,8 +173,17 @@ pub fn fire_ranged_weapons(
             timer.0 = 1.0 / fire_rate.max(0.1);
 
             let pos = transform.translation.truncate();
-            let dir = Vec2::new(angle.0 .0.cos(), angle.0 .0.sin());
             let wid = build.0.weapon.id.clone();
+            let (vis_len, vis_thick) = build.0.weapon.projectile_dims();
+
+            // Choose base fire direction based on aim mode.
+            let base_angle = match ranged.aim_mode {
+                crate::game::stats::types::AimMode::SeekNearestTarget => {
+                    aim_angle.map(|a| a.0).unwrap_or(angle.0 .0)
+                }
+                crate::game::stats::types::AimMode::FollowSpin => angle.0 .0,
+            };
+            let dir = Vec2::new(base_angle.cos(), base_angle.sin());
 
             if ranged.burst_count <= 1 && ranged.spread_angle <= 0.0 {
                 events.write(GameEvent::SpawnProjectile {
@@ -185,6 +195,8 @@ pub fn fire_ranged_weapons(
                     radius: ranged.projectile_radius,
                     lifetime: ranged.lifetime.0,
                     weapon_id: wid,
+                    visual_len: vis_len,
+                    visual_thick: vis_thick,
                 });
             } else {
                 let count = ranged.burst_count.max(1);
@@ -194,7 +206,7 @@ pub fn fire_ranged_weapons(
                 } else {
                     0.0
                 };
-                let start_angle = angle.0 .0 - total_spread / 2.0;
+                let start_angle = base_angle - total_spread / 2.0;
 
                 for i in 0..count {
                     let a = start_angle + step * i as f32;
@@ -208,6 +220,8 @@ pub fn fire_ranged_weapons(
                         radius: ranged.projectile_radius,
                         lifetime: ranged.lifetime.0,
                         weapon_id: wid.clone(),
+                        visual_len: vis_len,
+                        visual_thick: vis_thick,
                     });
                 }
             }

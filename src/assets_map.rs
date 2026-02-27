@@ -27,6 +27,12 @@ pub struct SfxHandles {
     pub melee_hit: Handle<AudioSource>,
     pub ranged_fire: Handle<AudioSource>,
     pub projectile_hit: Handle<AudioSource>,
+    /// Per-weapon fire sounds: `audio/sfx/fire_{weapon_id}.ogg`.
+    /// Falls back to `ranged_fire` when weapon ID has no entry.
+    pub weapon_fire_sfx: HashMap<String, Handle<AudioSource>>,
+    /// Per-weapon hit sounds: `audio/sfx/hit_{weapon_id}.ogg`.
+    /// Falls back to `melee_hit` / `projectile_hit` when weapon ID has no entry.
+    pub weapon_hit_sfx: HashMap<String, Handle<AudioSource>>,
 }
 
 impl GameAssets {
